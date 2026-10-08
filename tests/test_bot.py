@@ -85,9 +85,9 @@ class BotTestCase(unittest.TestCase):
             p.start()
             self.addCleanup(p.stop)
 
-    def run_bot(self, max_refreshes):
+    def run_bot(self, max_refreshes, itens_idx=None):
         main.state.reset(max_refreshes)
-        main.bot_loop("en", max_refreshes)
+        main.bot_loop("en", max_refreshes, itens_idx)
         return main.state.drain_logs()
 
 
@@ -123,6 +123,12 @@ class TestBotLoop(BotTestCase):
         self.assertEqual(main.state.friendship_total, 2 * main.FRIENDSHIP_AMOUNT)
         self.assertEqual(main.state.gold_spent, 2 * main.FRIENDSHIP_GOLD)
         self.assertEqual(main.state.mystic_buys, 0)
+
+    def test_skips_unselected_items(self):
+        logs = self.run_bot(1, [main.BOOKMARK_IDX, main.FRIENDSHIP_IDX])
+        self.assertEqual(self.device.bought, [])
+        self.assertEqual(main.state.mystic_buys, 0)
+        self.assertTrue(any("Covenant Bookmarks, Friendship Points" in line for line in logs))
 
     def test_purchase_without_dialog_is_not_counted(self):
         self.device.buy_dialog = False
@@ -181,6 +187,30 @@ class TestApp(BotTestCase):
         self.assertFalse(thread.is_alive())
         self.app._poll()
         self.assertEqual(str(self.app.btn_start["state"]), "normal")
+
+    def test_start_requires_at_least_one_item(self):
+        for var in self.app.item_vars:
+            var.set(False)
+        self.app.input_var.set("30")
+        self.app._on_start()
+        self.assertIsNone(self.app._bot_thread)
+        self.assertEqual(self.app.lbl_error["text"], main._UI["no_items"])
+
+    def test_start_buys_only_selected_items(self):
+        self.app.item_vars[main.MYSTIC_IDX].set(False)
+        self.app.input_var.set("3")
+        self.app._on_start()
+        thread = self.app._bot_thread
+        assert thread is not None
+        self.assertTrue(all(str(c["state"]) == "disabled" for c in self.app._item_checks))
+
+        thread.join(5)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(self.device.bought, [])
+        self.assertEqual(main.state.mystic_buys, 0)
+
+        self.app._poll()
+        self.assertTrue(all(str(c["state"]) == "normal" for c in self.app._item_checks))
 
 
 if __name__ == "__main__":

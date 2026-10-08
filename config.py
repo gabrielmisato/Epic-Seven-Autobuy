@@ -40,6 +40,7 @@ LOG = {
         "no_refresh_dialog": "Dialog de renovação não encontrado, renovação não confirmada.",
         "refresh_aborted": "Renovação falhou {} vezes seguidas, encerrando.",
         "error":          "Erro: {}",
+        "targets":        "Itens selecionados: {}",
         "bot_stopped":    "Bot encerrado.",
     },
     "en": {
@@ -58,6 +59,7 @@ LOG = {
         "no_refresh_dialog": "Refresh dialog not found, refresh not confirmed.",
         "refresh_aborted": "Refresh failed {} times in a row, stopping.",
         "error":          "Error: {}",
+        "targets":        "Selected items: {}",
         "bot_stopped":    "Bot stopped.",
     },
 }
@@ -72,6 +74,8 @@ UI = {
         "ref_hint":     "skystones serão gastas",
         "invalid_mult": "Skystones deve ser múltiplo de 3!",
         "invalid_val":  "Valor inválido!",
+        "items_label":  "Itens para comprar",
+        "no_items":     "Selecione ao menos um item!",
         "btn_start":    "Iniciar",
         "btn_stop":     "Parar",
         "lbl_start":    "Início:",
@@ -93,6 +97,8 @@ UI = {
         "ref_hint":     "skystones will be spent",
         "invalid_mult": "Skystones must be a multiple of 3!",
         "invalid_val":  "Invalid value!",
+        "items_label":  "Items to buy",
+        "no_items":     "Select at least one item!",
         "btn_start":    "Start",
         "btn_stop":     "Stop",
         "lbl_start":    "Start:",

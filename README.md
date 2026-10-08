@@ -85,11 +85,13 @@ python main.py
 
 1. **Game language** - select `pt` if the game is in Portuguese, `en` if in English. This controls which text the bot searches for on screen.
 
-2. **Input mode** - choose between entering the number of Skystones to spend or the number of refreshes. The program calculates the equivalent automatically (3 Skystones = 1 refresh). Skystones input must be a multiple of 3.
+2. **Items to buy** - check which items the bot should buy: Mystic Medals, Covenant Bookmarks and/or Friendship Points (all checked by default). At least one must be selected; the selection is locked while the bot is running.
 
-3. **Start** - launches the bot. The Secret Shop must already be open before clicking.
+3. **Input mode** - choose between entering the number of Skystones to spend or the number of refreshes. The program calculates the equivalent automatically (3 Skystones = 1 refresh). Skystones input must be a multiple of 3.
 
-4. **Stop** - asks the bot to stop. It finishes the action in progress (e.g. a purchase being confirmed) and stops before the next one, without completing the cycle. **Start** becomes available again only after the bot has actually stopped.
+4. **Start** - launches the bot. The Secret Shop must already be open before clicking.
+
+5. **Stop** - asks the bot to stop. It finishes the action in progress (e.g. a purchase being confirmed) and stops before the next one, without completing the cycle. **Start** becomes available again only after the bot has actually stopped.
 
 ---
 
@@ -97,7 +99,7 @@ python main.py
 
 Each cycle performs the following steps:
 
-1. Scans visible items on screen and buys any matches found
+1. Scans visible items on screen and buys the selected ones
 2. Confirms each purchase in the confirmation dialog
 3. Scrolls the list down and scans again
 4. Clicks Refresh and confirms the renewal

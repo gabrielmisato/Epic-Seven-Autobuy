@@ -20,7 +20,8 @@ from config import (
 
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-_UI = UI["en"]
+_UI_LANG = "en"
+_UI = UI[_UI_LANG]
 
 
 class BotState:
@@ -163,10 +164,10 @@ def _buy_item(pos, data: dict, item_idx: int, idioma: str) -> bool:
     return True
 
 
-def _buy_all_visible(itens: list, already_bought: set, idioma: str) -> set:
+def _buy_all_visible(itens: list[tuple[int, str]], already_bought: set, idioma: str) -> set:
     lg = LOG[idioma]
     newly = set()
-    for idx, item in enumerate(itens):
+    for idx, item in itens:
         if item in already_bought or state.stop_event.is_set():
             continue
         data = _ocr(_screenshot())
@@ -199,12 +200,16 @@ def _refresh_shop(idioma: str) -> bool:
     return True
 
 
-def bot_loop(idioma: str, max_refreshes: int):
+def bot_loop(idioma: str, max_refreshes: int, itens_idx: list[int] | None = None):
     global _device
     lg = LOG[idioma]
-    itens = ITENS[idioma]
+    itens = [
+        (idx, item) for idx, item in enumerate(ITENS[idioma])
+        if itens_idx is None or idx in itens_idx
+    ]
 
     try:
+        state.log(lg["targets"].format(", ".join(item for _, item in itens)))
         state.log(lg["connecting"])
         _device = u2.connect("127.0.0.1:7555")
         state.log(lg["connected"])
@@ -258,6 +263,7 @@ class App(tk.Tk):
         self.lang_var = tk.StringVar(value="pt")
         self.mode_var = tk.StringVar(value="sky")
         self.input_var = tk.StringVar()
+        self.item_vars = [tk.BooleanVar(value=True) for _ in ITENS[_UI_LANG]]
         self._bot_thread = None
 
         self._build()
@@ -275,31 +281,41 @@ class App(tk.Tk):
             values=["pt", "en"], state="readonly", width=5,
         ).grid(row=0, column=1, sticky="w", pady=4)
 
+        items_frame = tk.LabelFrame(left, text=_UI["items_label"], padx=6)
+        items_frame.grid(row=1, column=0, columnspan=2, sticky="we", pady=4)
+        self._item_checks = []
+        for item, var in zip(ITENS[_UI_LANG], self.item_vars, strict=True):
+            check = tk.Checkbutton(
+                items_frame, text=item, variable=var, command=self._on_input_change,
+            )
+            check.pack(anchor="w")
+            self._item_checks.append(check)
+
         tk.Radiobutton(
             left, text=_UI["mode_sky"],
             variable=self.mode_var, value="sky",
             command=self._on_input_change,
-        ).grid(row=1, column=0, columnspan=2, sticky="w")
+        ).grid(row=2, column=0, columnspan=2, sticky="w")
 
         tk.Radiobutton(
             left, text=_UI["mode_ref"],
             variable=self.mode_var, value="ref",
             command=self._on_input_change,
-        ).grid(row=2, column=0, columnspan=2, sticky="w")
+        ).grid(row=3, column=0, columnspan=2, sticky="w")
 
         tk.Entry(left, textvariable=self.input_var, width=12).grid(
-            row=3, column=0, columnspan=2, sticky="w", pady=4
+            row=4, column=0, columnspan=2, sticky="w", pady=4
         )
         self.input_var.trace_add("write", lambda *_: self._on_input_change())
 
         self.lbl_hint = tk.Label(left, fg="gray")
-        self.lbl_hint.grid(row=4, column=0, columnspan=2, sticky="w")
+        self.lbl_hint.grid(row=5, column=0, columnspan=2, sticky="w")
 
         self.lbl_error = tk.Label(left, fg="red")
-        self.lbl_error.grid(row=5, column=0, columnspan=2, sticky="w")
+        self.lbl_error.grid(row=6, column=0, columnspan=2, sticky="w")
 
         btn_frame = tk.Frame(left)
-        btn_frame.grid(row=6, column=0, columnspan=2, pady=8)
+        btn_frame.grid(row=7, column=0, columnspan=2, pady=8)
 
         self.btn_start = tk.Button(
             btn_frame, text=_UI["btn_start"], width=10,
@@ -380,17 +396,26 @@ class App(tk.Tk):
             return val // SKYSTONES_PER_REFRESH
         return val
 
+    def _set_running(self, running: bool):
+        self.btn_start.config(state="disabled" if running else "normal")
+        self.btn_stop.config(state="normal" if running else "disabled")
+        for check in self._item_checks:
+            check.config(state="disabled" if running else "normal")
+
     def _on_start(self):
         if self._bot_thread and self._bot_thread.is_alive():
+            return
+        itens_idx = [i for i, var in enumerate(self.item_vars) if var.get()]
+        if not itens_idx:
+            self.lbl_error.config(text=_UI["no_items"])
             return
         max_ref = self._validate()
         if max_ref is None:
             return
         state.reset(max_ref)
-        self.btn_start.config(state="disabled")
-        self.btn_stop.config(state="normal")
+        self._set_running(True)
         self._bot_thread = threading.Thread(
-            target=bot_loop, args=(self.lang_var.get(), max_ref), daemon=True,
+            target=bot_loop, args=(self.lang_var.get(), max_ref, itens_idx), daemon=True,
         )
         self._bot_thread.start()
 
@@ -429,8 +454,7 @@ class App(tk.Tk):
 
         if self._bot_thread and not self._bot_thread.is_alive():
             self._bot_thread = None
-            self.btn_start.config(state="normal")
-            self.btn_stop.config(state="disabled")
+            self._set_running(False)
 
         self.after(500, self._poll)
 
