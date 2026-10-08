@@ -9,6 +9,7 @@ BOOKMARK_IDX = 1
 
 DIALOG_TIMEOUT = 3
 MAX_REFRESH_FAILURES = 3
+ROW_TOLERANCE_PX = 50
 
 ITENS = {
     "en": ["Mystic Medals", "Covenant Bookmarks"],

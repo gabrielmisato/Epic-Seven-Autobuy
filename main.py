@@ -13,7 +13,7 @@ from config import (
     BOOKMARK_AMOUNT, MYSTIC_AMOUNT,
     BOOKMARK_GOLD, MYSTIC_GOLD,
     MYSTIC_IDX, BOOKMARK_IDX,
-    DIALOG_TIMEOUT, MAX_REFRESH_FAILURES,
+    DIALOG_TIMEOUT, MAX_REFRESH_FAILURES, ROW_TOLERANCE_PX,
     ITENS, REFRESH_STR, CANCEL_STR, BUY_STR,
     LOG, UI,
 )
@@ -79,15 +79,27 @@ def _ocr(img) -> dict:
     return pytesseract.image_to_data(img, lang='por', output_type=pytesseract.Output.DICT)
 
 
+def _word_center(data: dict, i: int):
+    return data['left'][i] + data['width'][i] // 2, data['top'][i] + data['height'][i] // 2
+
+
 def _find_text(data: dict, text: str):
     tl = text.lower()
     for i, word in enumerate(data['text']):
         if data['conf'][i] < 0:
             continue
         if tl in word.lower():
-            x = data['left'][i] + data['width'][i] // 2
-            y = data['top'][i] + data['height'][i] // 2
-            return x, y
+            return _word_center(data, i)
+    return None
+
+
+def _find_text_in_row(data: dict, text: str, y: int, min_x: int | None = None):
+    tl = text.lower()
+    for i, word in enumerate(data['text']):
+        if tl in word.lower():
+            wx, wy = _word_center(data, i)
+            if abs(wy - y) < ROW_TOLERANCE_PX and (min_x is None or wx > min_x):
+                return wx, wy
     return None
 
 
@@ -108,16 +120,11 @@ def _confirm_purchase(idioma: str) -> bool:
     if not cancel_pos:
         state.log(lg["no_dialog"])
         return False
-    _, cy = cancel_pos
-    buy = BUY_STR[idioma].lower()
-    for i, word in enumerate(data['text']):
-        if buy in word.lower():
-            bx = data['left'][i] + data['width'][i] // 2
-            by = data['top'][i] + data['height'][i] // 2
-            if abs(by - cy) < 50 and bx > cancel_pos[0]:
-                state.log(lg["confirming"].format(bx, by))
-                _device.click(bx, by)
-                return True
+    confirm_pos = _find_text_in_row(data, BUY_STR[idioma], cancel_pos[1], min_x=cancel_pos[0])
+    if confirm_pos:
+        state.log(lg["confirming"].format(*confirm_pos))
+        _device.click(*confirm_pos)
+        return True
     state.log(lg["no_confirm_btn"])
     _device.click(*cancel_pos)
     return False
@@ -125,15 +132,7 @@ def _confirm_purchase(idioma: str) -> bool:
 
 def _buy_item(pos, data: dict, item_idx: int, idioma: str) -> bool:
     lg = LOG[idioma]
-    buy = BUY_STR[idioma].lower()
-    _, iy = pos
-    buy_pos = None
-    for i, word in enumerate(data['text']):
-        if buy in word.lower():
-            by = data['top'][i] + data['height'][i] // 2
-            if abs(by - iy) < 50:
-                buy_pos = (data['left'][i] + data['width'][i] // 2, by)
-                break
+    buy_pos = _find_text_in_row(data, BUY_STR[idioma], pos[1])
     if buy_pos:
         _device.click(*buy_pos)
     else:
