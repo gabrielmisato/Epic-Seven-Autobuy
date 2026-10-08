@@ -10,9 +10,9 @@ import pytesseract
 
 from config import (
     SKYSTONES_PER_REFRESH,
-    BOOKMARK_AMOUNT, MYSTIC_AMOUNT,
-    BOOKMARK_GOLD, MYSTIC_GOLD,
-    MYSTIC_IDX, BOOKMARK_IDX,
+    BOOKMARK_AMOUNT, MYSTIC_AMOUNT, FRIENDSHIP_AMOUNT,
+    BOOKMARK_GOLD, MYSTIC_GOLD, FRIENDSHIP_GOLD,
+    MYSTIC_IDX, BOOKMARK_IDX, FRIENDSHIP_IDX,
     DIALOG_TIMEOUT, MAX_REFRESH_FAILURES, ROW_TOLERANCE_PX,
     ITENS, REFRESH_STR, CANCEL_STR, BUY_STR,
     LOG, UI,
@@ -32,6 +32,7 @@ class BotState:
         self.max_refreshes = 0
         self.bookmark_buys = 0
         self.mystic_buys = 0
+        self.friendship_buys = 0
         self.gold_spent = 0
         self._log = []
         self._lock = threading.Lock()
@@ -44,6 +45,7 @@ class BotState:
         self.max_refreshes = max_refreshes
         self.bookmark_buys = 0
         self.mystic_buys = 0
+        self.friendship_buys = 0
         self.gold_spent = 0
         with self._lock:
             self._log = []
@@ -65,6 +67,10 @@ class BotState:
     @property
     def mystics_total(self):
         return self.mystic_buys * MYSTIC_AMOUNT
+
+    @property
+    def friendship_total(self):
+        return self.friendship_buys * FRIENDSHIP_AMOUNT
 
 
 state = BotState()
@@ -151,6 +157,9 @@ def _buy_item(pos, data: dict, item_idx: int, idioma: str) -> bool:
         elif item_idx == BOOKMARK_IDX:
             state.bookmark_buys += 1
             state.gold_spent += BOOKMARK_GOLD
+        elif item_idx == FRIENDSHIP_IDX:
+            state.friendship_buys += 1
+            state.gold_spent += FRIENDSHIP_GOLD
     return True
 
 
@@ -316,6 +325,7 @@ class App(tk.Tk):
             ("lbl_refreshes", "val_refreshes"),
             ("lbl_bookmarks", "val_bookmarks"),
             ("lbl_mystics", "val_mystics"),
+            ("lbl_friendship", "val_friendship"),
             ("lbl_gold", "val_gold"),
         ]
         for r, entry in enumerate(rows):
@@ -408,6 +418,7 @@ class App(tk.Tk):
         self._stat("val_refreshes", f"{s.refreshes_done} / {s.max_refreshes}")
         self._stat("val_bookmarks", f"{s.bookmarks_total} ({s.bookmark_buys} {_UI['purchases']})")
         self._stat("val_mystics", f"{s.mystics_total} ({s.mystic_buys} {_UI['purchases']})")
+        self._stat("val_friendship", f"{s.friendship_total} ({s.friendship_buys} {_UI['purchases']})")
         self._stat("val_gold", f"{s.gold_spent:,}".replace(",", "."))
 
         for msg in s.drain_logs():

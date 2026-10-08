@@ -27,8 +27,9 @@ class FakeDevice:
     BUY_CONFIRM = (600, 500)
     REFRESH_CONFIRM = (625, 625)  # w // 2 + 125, h // 2 + 125 com tela 1000x1000
 
-    def __init__(self, buy_dialog=True, refresh_dialog=True):
+    def __init__(self, buy_dialog=True, refresh_dialog=True, item="Mystic"):
         self.buy_dialog = buy_dialog
+        self.item = item
         self.refresh_dialog = refresh_dialog
         self.shop = 0
         self.scanned = set()
@@ -51,7 +52,7 @@ class FakeDevice:
         if self.dialog == "refresh":
             return [("Cancel", 400, 600), ("Confirm", *self.REFRESH_CONFIRM)]
         self.scanned.add(self.shop)
-        return [("Mystic", 0, 100), ("Buy", *self.BUY_BTN), ("Refresh", *self.REFRESH_BTN)]
+        return [(self.item, 0, 100), ("Buy", *self.BUY_BTN), ("Refresh", *self.REFRESH_BTN)]
 
     def click(self, x, y):
         pos = (x, y)
@@ -114,6 +115,14 @@ class TestBotLoop(BotTestCase):
         self.assertEqual(len(self.device.bought), 4)
         self.assertEqual(main.state.mystic_buys, 4)
         self.assertEqual(main.state.gold_spent, 4 * main.MYSTIC_GOLD)
+
+    def test_counts_friendship_points_purchases(self):
+        self.device.item = "Friendship"
+        self.run_bot(1)
+        self.assertEqual(main.state.friendship_buys, 2)
+        self.assertEqual(main.state.friendship_total, 2 * main.FRIENDSHIP_AMOUNT)
+        self.assertEqual(main.state.gold_spent, 2 * main.FRIENDSHIP_GOLD)
+        self.assertEqual(main.state.mystic_buys, 0)
 
     def test_purchase_without_dialog_is_not_counted(self):
         self.device.buy_dialog = False

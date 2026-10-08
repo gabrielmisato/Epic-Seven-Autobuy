@@ -109,6 +109,7 @@ Monitored items:
 
 - Mystic Medals (50 per purchase, 280,000 gold each)
 - Covenant Bookmarks (5 per purchase, 184,000 gold each)
+- Friendship Points (50 per purchase, 18,000 gold each)
 
 ---
 
@@ -117,7 +118,7 @@ Monitored items:
 - Session start and end time
 - Total duration
 - Refreshes completed vs. total configured
-- Total Covenant Bookmarks and Mystic Medals purchased
+- Total Covenant Bookmarks, Mystic Medals and Friendship Points purchased
 - Total gold spent
 
 ---

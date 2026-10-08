@@ -1,19 +1,22 @@
 SKYSTONES_PER_REFRESH = 3
 BOOKMARK_GOLD  = 184_000
 MYSTIC_GOLD    = 280_000
+FRIENDSHIP_GOLD = 18_000
 BOOKMARK_AMOUNT = 5
 MYSTIC_AMOUNT   = 50
+FRIENDSHIP_AMOUNT = 50
 
 MYSTIC_IDX   = 0
 BOOKMARK_IDX = 1
+FRIENDSHIP_IDX = 2
 
 DIALOG_TIMEOUT = 3
 MAX_REFRESH_FAILURES = 3
 ROW_TOLERANCE_PX = 50
 
 ITENS = {
-    "en": ["Mystic Medals", "Covenant Bookmarks"],
-    "pt": ["Medalhas Místicas", "Marca-Páginas da Aliança"],
+    "en": ["Mystic Medals", "Covenant Bookmarks", "Friendship Points"],
+    "pt": ["Medalhas Místicas", "Marca-Páginas da Aliança", "Pontos de Amizade"],
 }
 
 REFRESH_STR = {"en": "Refresh", "pt": "Renovar"}
@@ -77,6 +80,7 @@ UI = {
         "lbl_refreshes":"Renovações:",
         "lbl_bookmarks":"Marca-Páginas:",
         "lbl_mystics":  "Medalhas Místicas:",
+        "lbl_friendship":"Pontos de Amizade:",
         "lbl_gold":     "Ouro gasto:",
         "purchases":    "compra(s)",
     },
@@ -97,6 +101,7 @@ UI = {
         "lbl_refreshes":"Refreshes:",
         "lbl_bookmarks":"Bookmarks:",
         "lbl_mystics":  "Mystic Medals:",
+        "lbl_friendship":"Friendship Points:",
         "lbl_gold":     "Gold spent:",
         "purchases":    "purchase(s)",
     },
