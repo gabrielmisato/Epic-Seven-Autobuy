@@ -48,12 +48,12 @@ pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tessera
 
 ### 2. Python and dependencies
 
-Create a virtual environment and install the required packages:
+Create a virtual environment and install the pinned packages:
 
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
-pip install uiautomator2 pytesseract pillow
+pip install -r requirements.txt
 ```
 
 ### 3. ADB and emulator
@@ -89,7 +89,7 @@ python main.py
 
 3. **Start** - launches the bot. The Secret Shop must already be open before clicking.
 
-4. **Stop** - stops the bot after the current cycle finishes.
+4. **Stop** - asks the bot to stop. It finishes the action in progress (e.g. a purchase being confirmed) and stops before the next one, without completing the cycle. **Start** becomes available again only after the bot has actually stopped.
 
 ---
 
@@ -101,7 +101,9 @@ Each cycle performs the following steps:
 2. Confirms each purchase in the confirmation dialog
 3. Scrolls the list down and scans again
 4. Clicks Refresh and confirms the renewal
-5. Waits and repeats until the configured number of refreshes is reached
+5. Waits and repeats until the configured number of refreshes is reached; the shop shown after the last refresh is also scanned
+
+Purchases and refreshes are only counted when their confirmation dialog is found. If the refresh fails several times in a row (`MAX_REFRESH_FAILURES` in `config.py`, e.g. when out of Skystones), the bot stops by itself. Errors are shown in the log, with the full traceback in the console.
 
 Monitored items:
 
@@ -126,3 +128,14 @@ Monitored items:
 |---|---|
 | `main.py` | Bot logic and graphical interface |
 | `config.py` | Constants, strings, and language configuration |
+| `tests/` | Regression tests (fake device and OCR, no emulator needed) |
+
+---
+
+## Tests
+
+The tests use only the standard library (`unittest`) and do not need the emulator or Tesseract:
+
+```bash
+python -m unittest
+```
