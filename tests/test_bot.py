@@ -88,6 +88,7 @@ class BotTestCase(unittest.TestCase):
             mock.patch("main.time.sleep"),
             mock.patch.object(main, "_ocr", lambda dev, gray=False: _ocr_data(dev.words(gray))),
             mock.patch.object(main.u2, "connect", lambda addr: self.device),
+            mock.patch.object(main, "_save_debug_screenshot"),
         ]
         for p in patches:
             p.start()
@@ -156,6 +157,12 @@ class TestBotLoop(BotTestCase):
         self.assertEqual(main.state.mystic_buys, 0)
         self.assertEqual(main.state.refreshes_done, 2)
         self.assertTrue(any(LOG["en"]["dialog_closed"] in line for line in logs))
+
+    def test_saves_screenshot_when_refresh_fails(self):
+        self.device.refresh_dialog = False
+        self.run_bot(1)
+        reasons = [c.args[1] for c in main._save_debug_screenshot.call_args_list]
+        self.assertEqual(reasons, ["no_refresh_dialog"] * main.MAX_REFRESH_FAILURES)
 
     def test_refresh_dialog_read_only_in_grayscale(self):
         self.device.refresh_gray_only = True

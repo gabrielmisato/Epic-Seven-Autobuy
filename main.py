@@ -1,7 +1,9 @@
+import tempfile
 import threading
 import time
 import traceback
 from datetime import datetime
+from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, scrolledtext
 
@@ -22,6 +24,7 @@ from config import (
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 _UI_LANG = "en"
+DEBUG_DIR = Path(tempfile.gettempdir()) / "secret_shop_bot"
 _UI = UI[_UI_LANG]
 
 
@@ -129,6 +132,13 @@ def _wait_for_text(text: str, attempts: int = DIALOG_ATTEMPTS):
     return None, data
 
 
+def _save_debug_screenshot(idioma: str, reason: str):
+    DEBUG_DIR.mkdir(exist_ok=True)
+    path = DEBUG_DIR / f"{datetime.now():%Y%m%d-%H%M%S}-{reason}.png"
+    _screenshot().save(path)
+    state.log(LOG[idioma]["debug_saved"].format(path))
+
+
 def _close_stray_dialog(idioma: str, data: dict | None = None) -> bool:
     if data is not None:
         cancel_pos = _find_text(data, CANCEL_STR[idioma])
@@ -148,6 +158,7 @@ def _confirm_purchase(idioma: str) -> bool:
     cancel_pos, data = _wait_for_text(CANCEL_STR[idioma])
     if not cancel_pos:
         state.log(lg["no_dialog"])
+        _save_debug_screenshot(idioma, "no_dialog")
         return False
     confirm_pos = _find_text_in_row(data, BUY_STR[idioma], cancel_pos[1], min_x=cancel_pos[0])
     if confirm_pos:
@@ -212,12 +223,14 @@ def _refresh_shop(idioma: str) -> bool:
         pos = _find_text(_ocr(_screenshot()), REFRESH_STR[idioma])
     if not pos:
         state.log(lg["no_refresh_btn"].format(REFRESH_STR[idioma]))
+        _save_debug_screenshot(idioma, "no_refresh_btn")
         return False
     state.log(lg["refreshing"].format(pos))
     _device.click(*pos)
     time.sleep(1.5)
     if not _wait_for_text(CANCEL_STR[idioma])[0]:
         state.log(lg["no_refresh_dialog"])
+        _save_debug_screenshot(idioma, "no_refresh_dialog")
         return False
     w, h = _device.window_size()
     _device.click(w // 2 + 125, h // 2 + 125)
