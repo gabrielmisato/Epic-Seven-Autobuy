@@ -160,8 +160,9 @@ class TestBotLoop(BotTestCase):
 
     def test_saves_screenshot_when_refresh_fails(self):
         self.device.refresh_dialog = False
-        self.run_bot(1)
-        reasons = [c.args[1] for c in main._save_debug_screenshot.call_args_list]
+        with mock.patch.object(main, "_save_debug_screenshot") as save:
+            self.run_bot(1)
+        reasons = [c.args[1] for c in save.call_args_list]
         self.assertEqual(reasons, ["no_refresh_dialog"] * main.MAX_REFRESH_FAILURES)
 
     def test_refresh_dialog_read_only_in_grayscale(self):
