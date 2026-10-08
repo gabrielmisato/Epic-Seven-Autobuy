@@ -1,5 +1,6 @@
 import threading
 import time
+import traceback
 from datetime import datetime
 import tkinter as tk
 from tkinter import ttk, scrolledtext
@@ -12,6 +13,7 @@ from config import (
     BOOKMARK_AMOUNT, MYSTIC_AMOUNT,
     BOOKMARK_GOLD, MYSTIC_GOLD,
     MYSTIC_IDX, BOOKMARK_IDX,
+    DIALOG_TIMEOUT, MAX_REFRESH_FAILURES,
     ITENS, REFRESH_STR, CANCEL_STR, BUY_STR,
     LOG, UI,
 )
@@ -89,14 +91,23 @@ def _find_text(data: dict, text: str):
     return None
 
 
-def _confirm_purchase(idioma: str):
+def _wait_for_text(text: str, timeout: float = DIALOG_TIMEOUT):
+    deadline = time.monotonic() + timeout
+    while True:
+        data = _ocr(_screenshot())
+        pos = _find_text(data, text)
+        if pos or time.monotonic() >= deadline:
+            return pos, data
+        time.sleep(0.25)
+
+
+def _confirm_purchase(idioma: str) -> bool:
     lg = LOG[idioma]
     time.sleep(0.5)
-    data = _ocr(_screenshot())
-    cancel_pos = _find_text(data, CANCEL_STR[idioma])
+    cancel_pos, data = _wait_for_text(CANCEL_STR[idioma])
     if not cancel_pos:
         state.log(lg["no_dialog"])
-        return
+        return False
     _, cy = cancel_pos
     buy = BUY_STR[idioma].lower()
     for i, word in enumerate(data['text']):
@@ -106,11 +117,13 @@ def _confirm_purchase(idioma: str):
             if abs(by - cy) < 50 and bx > cancel_pos[0]:
                 state.log(lg["confirming"].format(bx, by))
                 _device.click(bx, by)
-                return
+                return True
     state.log(lg["no_confirm_btn"])
+    _device.click(*cancel_pos)
+    return False
 
 
-def _buy_item(pos, data: dict, item_idx: int, idioma: str):
+def _buy_item(pos, data: dict, item_idx: int, idioma: str) -> bool:
     lg = LOG[idioma]
     buy = BUY_STR[idioma].lower()
     _, iy = pos
@@ -127,8 +140,10 @@ def _buy_item(pos, data: dict, item_idx: int, idioma: str):
         state.log(lg["no_buy_ocr"])
         _device.click(pos[0] + 160, pos[1])
 
-    _confirm_purchase(idioma)
+    confirmed = _confirm_purchase(idioma)
     time.sleep(0.5)
+    if not confirmed:
+        return False
 
     with state._lock:
         if item_idx == MYSTIC_IDX:
@@ -137,6 +152,7 @@ def _buy_item(pos, data: dict, item_idx: int, idioma: str):
         elif item_idx == BOOKMARK_IDX:
             state.bookmark_buys += 1
             state.gold_spent += BOOKMARK_GOLD
+    return True
 
 
 def _buy_all_visible(itens: list, already_bought: set, idioma: str) -> set:
@@ -150,25 +166,29 @@ def _buy_all_visible(itens: list, already_bought: set, idioma: str) -> set:
         if not pos:
             continue
         state.log(lg["item_found"].format(item))
-        _buy_item(pos, data, idx, idioma)
-        newly.add(item)
+        if _buy_item(pos, data, idx, idioma):
+            newly.add(item)
     return newly
 
 
-def _refresh_shop(idioma: str):
+def _refresh_shop(idioma: str) -> bool:
     lg = LOG[idioma]
     data = _ocr(_screenshot())
     pos = _find_text(data, REFRESH_STR[idioma])
-    if pos:
-        state.log(lg["refreshing"].format(pos))
-        _device.click(*pos)
-        time.sleep(1.5)
-        w, h = _device.window_size()
-        _device.click(w // 2 + 125, h // 2 + 125)
-        with state._lock:
-            state.refreshes_done += 1
-    else:
+    if not pos:
         state.log(lg["no_refresh_btn"].format(REFRESH_STR[idioma]))
+        return False
+    state.log(lg["refreshing"].format(pos))
+    _device.click(*pos)
+    time.sleep(1.5)
+    if not _wait_for_text(CANCEL_STR[idioma])[0]:
+        state.log(lg["no_refresh_dialog"])
+        return False
+    w, h = _device.window_size()
+    _device.click(w // 2 + 125, h // 2 + 125)
+    with state._lock:
+        state.refreshes_done += 1
+    return True
 
 
 def bot_loop(idioma: str, max_refreshes: int):
@@ -176,38 +196,49 @@ def bot_loop(idioma: str, max_refreshes: int):
     lg = LOG[idioma]
     itens = ITENS[idioma]
 
-    state.log(lg["connecting"])
-    _device = u2.connect("127.0.0.1:7555")
-    state.log(lg["connected"])
+    try:
+        state.log(lg["connecting"])
+        _device = u2.connect("127.0.0.1:7555")
+        state.log(lg["connected"])
 
-    ciclo = 1
-    while not state.stop_event.is_set():
-        if state.refreshes_done >= max_refreshes:
-            state.log(lg["max_reached"])
-            break
+        ciclo = 1
+        refresh_failures = 0
+        while not state.stop_event.is_set():
+            state.log(lg["cycle"].format(ciclo))
+            bought = set()
 
-        state.log(lg["cycle"].format(ciclo))
-        bought = set()
+            bought |= _buy_all_visible(itens, bought, idioma)
+            if state.stop_event.is_set():
+                break
 
-        bought |= _buy_all_visible(itens, bought, idioma)
-        if state.stop_event.is_set():
-            break
+            state.log(lg["scrolling"])
+            _device.swipe_ext("up")
+            time.sleep(0.5)
 
-        state.log(lg["scrolling"])
-        _device.swipe_ext("up")
-        time.sleep(0.5)
+            bought |= _buy_all_visible(itens, bought, idioma)
+            if state.stop_event.is_set():
+                break
 
-        bought |= _buy_all_visible(itens, bought, idioma)
-        if state.stop_event.is_set():
-            break
+            if state.refreshes_done >= max_refreshes:
+                state.log(lg["max_reached"])
+                break
 
-        _refresh_shop(idioma)
-        ciclo += 1
-        time.sleep(2)
-
-    with state._lock:
-        state.end_time = datetime.now()
-    state.log(lg["bot_stopped"])
+            if _refresh_shop(idioma):
+                refresh_failures = 0
+            else:
+                refresh_failures += 1
+                if refresh_failures >= MAX_REFRESH_FAILURES:
+                    state.log(lg["refresh_aborted"].format(refresh_failures))
+                    break
+            ciclo += 1
+            time.sleep(2)
+    except Exception as e:
+        traceback.print_exc()
+        state.log(lg["error"].format(f"{type(e).__name__}: {e}"))
+    finally:
+        with state._lock:
+            state.end_time = datetime.now()
+        state.log(lg["bot_stopped"])
 
 
 class App(tk.Tk):
@@ -341,6 +372,8 @@ class App(tk.Tk):
         return val
 
     def _on_start(self):
+        if self._bot_thread and self._bot_thread.is_alive():
+            return
         max_ref = self._validate()
         if max_ref is None:
             return
@@ -354,7 +387,6 @@ class App(tk.Tk):
 
     def _on_stop(self):
         state.stop_event.set()
-        self.btn_start.config(state="normal")
         self.btn_stop.config(state="disabled")
 
     def _poll(self):

@@ -7,6 +7,9 @@ MYSTIC_AMOUNT   = 50
 MYSTIC_IDX   = 0
 BOOKMARK_IDX = 1
 
+DIALOG_TIMEOUT = 3
+MAX_REFRESH_FAILURES = 3
+
 ITENS = {
     "en": ["Mystic Medals", "Covenant Bookmarks"],
     "pt": ["Medalhas Místicas", "Marca-Páginas da Aliança"],
@@ -30,6 +33,9 @@ LOG = {
         "item_found":     "'{}' encontrado! Comprando...",
         "refreshing":     "Renovando em {}...",
         "no_refresh_btn": "Botão '{}' não encontrado!",
+        "no_refresh_dialog": "Dialog de renovação não encontrado, renovação não confirmada.",
+        "refresh_aborted": "Renovação falhou {} vezes seguidas, encerrando.",
+        "error":          "Erro: {}",
         "bot_stopped":    "Bot encerrado.",
     },
     "en": {
@@ -45,6 +51,9 @@ LOG = {
         "item_found":     "'{}' found! Buying...",
         "refreshing":     "Refreshing at {}...",
         "no_refresh_btn": "'{}' button not found!",
+        "no_refresh_dialog": "Refresh dialog not found, refresh not confirmed.",
+        "refresh_aborted": "Refresh failed {} times in a row, stopping.",
+        "error":          "Error: {}",
         "bot_stopped":    "Bot stopped.",
     },
 }
