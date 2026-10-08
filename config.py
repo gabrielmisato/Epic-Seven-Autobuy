@@ -20,6 +20,8 @@ ITENS = {
     "pt": ["Medalhas Místicas", "Marca-Páginas da Aliança", "Pontos de Amizade"],
 }
 
+SOLD_OUT_STR = "0/"
+
 REFRESH_STR = {"en": "Refresh", "pt": "Renovar"}
 CANCEL_STR  = {"en": "Cancel",  "pt": "Cancelar"}
 BUY_STR     = {"en": "Buy",     "pt": "Comprar"}
@@ -36,6 +38,7 @@ LOG = {
         "no_confirm_btn": "Botão de confirmação não encontrado.",
         "no_buy_ocr":     "Botão Comprar não encontrado via OCR, clicando 160px à direita...",
         "item_found":     "'{}' encontrado! Comprando...",
+        "sold_out":       "'{}' já comprado nesta loja, pulando.",
         "refreshing":     "Renovando em {}...",
         "no_refresh_btn": "Botão '{}' não encontrado!",
         "no_refresh_dialog": "Dialog de renovação não encontrado, renovação não confirmada.",
@@ -57,6 +60,7 @@ LOG = {
         "no_confirm_btn": "Confirmation button not found.",
         "no_buy_ocr":     "Buy button not found via OCR, clicking 160px to the right...",
         "item_found":     "'{}' found! Buying...",
+        "sold_out":       "'{}' already bought in this shop, skipping.",
         "refreshing":     "Refreshing at {}...",
         "no_refresh_btn": "'{}' button not found!",
         "no_refresh_dialog": "Refresh dialog not found, refresh not confirmed.",

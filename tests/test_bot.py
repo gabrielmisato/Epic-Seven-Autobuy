@@ -27,14 +27,18 @@ class FakeDevice:
     BUY_CONFIRM = (600, 500)
     REFRESH_CONFIRM = (625, 625)  # w // 2 + 125, h // 2 + 125 com tela 1000x1000
 
-    def __init__(self, buy_dialog=True, refresh_dialog=True, item="Mystic", refresh_gray_only=False,
-                 buy_dialog_delay=0):
-        self.buy_dialog = buy_dialog
-        self.buy_dialog_delay = buy_dialog_delay  # leituras de OCR até a janela de compra aparecer
+    def __init__(self):
+        # Comportamentos que cada teste pode trocar depois de criar o dispositivo
+        self.item = "Mystic"
+        self.buy_dialog = True
+        self.refresh_dialog = True
+        self.refresh_gray_only = False
+        self.sold_out = False
+        self.buy_dialog_delay = 0  # leituras de OCR até a janela de compra aparecer
+        self.refresh_misses_after_swipe = 0  # leituras sem Renovar após rolar
+
+        self.refresh_hidden = 0
         self.dialog_reads = 0
-        self.refresh_gray_only = refresh_gray_only
-        self.item = item
-        self.refresh_dialog = refresh_dialog
         self.shop = 0
         self.scanned = set()
         self.dialog = None
@@ -48,7 +52,7 @@ class FakeDevice:
         return (1000, 1000)
 
     def swipe_ext(self, direction):
-        pass
+        self.refresh_hidden = self.refresh_misses_after_swipe
 
     def words(self, gray=False):
         if self.dialog == "refresh" and self.refresh_gray_only and not gray:
@@ -61,7 +65,14 @@ class FakeDevice:
         if self.dialog == "refresh":
             return [("Cancel", 400, 600), ("Confirm", *self.REFRESH_CONFIRM)]
         self.scanned.add(self.shop)
-        return [(self.item, 0, 100), ("Buy", *self.BUY_BTN), ("Refresh", *self.REFRESH_BTN)]
+        words = [(self.item, 0, 100), ("Buy", *self.BUY_BTN)]
+        if self.sold_out:
+            words.append(("0/1", 250, 100))
+        if self.refresh_hidden:
+            self.refresh_hidden -= 1
+        else:
+            words.append(("Refresh", *self.REFRESH_BTN))
+        return words
 
     def click(self, x, y):
         pos = (x, y)
@@ -164,6 +175,25 @@ class TestBotLoop(BotTestCase):
             self.run_bot(1)
         reasons = [c.args[1] for c in save.call_args_list]
         self.assertEqual(reasons, ["no_refresh_dialog"] * main.MAX_REFRESH_FAILURES)
+
+    def test_does_not_rebuy_while_refresh_fails(self):
+        self.device.refresh_dialog = False
+        self.run_bot(1, [main.MYSTIC_IDX])
+        self.assertEqual(len(self.device.bought), 1)
+        self.assertEqual(main.state.mystic_buys, 1)
+
+    def test_skips_sold_out_item(self):
+        self.device.sold_out = True
+        logs = self.run_bot(1)
+        self.assertEqual(self.device.bought, [])
+        self.assertIsNone(self.device.dialog)
+        expected = LOG["en"]["sold_out"].format("Mystic Medals")
+        self.assertTrue(any(expected in line for line in logs))
+
+    def test_retries_refresh_button(self):
+        self.device.refresh_misses_after_swipe = 2  # some na 1ª tentativa (leitura colorida + cinza)
+        self.run_bot(1, [main.MYSTIC_IDX])
+        self.assertEqual(main.state.refreshes_done, 1)
 
     def test_refresh_dialog_read_only_in_grayscale(self):
         self.device.refresh_gray_only = True

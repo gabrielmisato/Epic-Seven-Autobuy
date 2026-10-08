@@ -17,7 +17,7 @@ from config import (
     BOOKMARK_GOLD, MYSTIC_GOLD, FRIENDSHIP_GOLD,
     MYSTIC_IDX, BOOKMARK_IDX, FRIENDSHIP_IDX,
     DIALOG_ATTEMPTS, DIALOG_RETRY_DELAY, MAX_REFRESH_FAILURES, ROW_TOLERANCE_PX,
-    ITENS, REFRESH_STR, CANCEL_STR, BUY_STR,
+    ITENS, REFRESH_STR, CANCEL_STR, BUY_STR, SOLD_OUT_STR,
     LOG, UI,
 )
 
@@ -207,6 +207,10 @@ def _buy_all_visible(itens: list[tuple[int, str]], already_bought: set, idioma: 
         pos = _find_text(data, item.split()[0])
         if not pos:
             continue
+        if _find_text_in_row(data, SOLD_OUT_STR, pos[1]):
+            state.log(lg["sold_out"].format(item))
+            newly.add(item)
+            continue
         state.log(lg["item_found"].format(item))
         if _buy_item(pos, data, idx, idioma):
             newly.add(item)
@@ -215,12 +219,11 @@ def _buy_all_visible(itens: list[tuple[int, str]], already_bought: set, idioma: 
 
 def _refresh_shop(idioma: str) -> bool:
     lg = LOG[idioma]
-    data = _ocr(_screenshot())
-    pos = _find_text(data, REFRESH_STR[idioma])
+    pos, data = _wait_for_text(REFRESH_STR[idioma])
     # Uma janela de compra que abriu depois que o bot desistiu dela fica por cima da loja:
     # primeiro olha a leitura que já foi feita; sem Renovar, faz uma busca completa.
     if _close_stray_dialog(idioma, data) or (not pos and _close_stray_dialog(idioma)):
-        pos = _find_text(_ocr(_screenshot()), REFRESH_STR[idioma])
+        pos, _ = _wait_for_text(REFRESH_STR[idioma])
     if not pos:
         state.log(lg["no_refresh_btn"].format(REFRESH_STR[idioma]))
         _save_debug_screenshot(idioma, "no_refresh_btn")
@@ -255,9 +258,9 @@ def bot_loop(idioma: str, max_refreshes: int, itens_idx: list[int] | None = None
 
         ciclo = 1
         refresh_failures = 0
+        bought = set()  # itens já comprados na loja atual; só zera quando a renovação acontece
         while not state.stop_event.is_set():
             state.log(lg["cycle"].format(ciclo))
-            bought = set()
 
             bought |= _buy_all_visible(itens, bought, idioma)
             if state.stop_event.is_set():
@@ -277,6 +280,7 @@ def bot_loop(idioma: str, max_refreshes: int, itens_idx: list[int] | None = None
 
             if _refresh_shop(idioma):
                 refresh_failures = 0
+                bought = set()
             else:
                 refresh_failures += 1
                 if refresh_failures >= MAX_REFRESH_FAILURES:
