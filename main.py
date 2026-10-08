@@ -91,7 +91,7 @@ def _find_text(data: dict, text: str):
 
 def _confirm_purchase(idioma: str):
     lg = LOG[idioma]
-    time.sleep(1)
+    time.sleep(0.5)
     data = _ocr(_screenshot())
     cancel_pos = _find_text(data, CANCEL_STR[idioma])
     if not cancel_pos:
@@ -128,7 +128,7 @@ def _buy_item(pos, data: dict, item_idx: int, idioma: str):
         _device.click(pos[0] + 160, pos[1])
 
     _confirm_purchase(idioma)
-    time.sleep(1)
+    time.sleep(0.5)
 
     with state._lock:
         if item_idx == MYSTIC_IDX:
@@ -162,7 +162,7 @@ def _refresh_shop(idioma: str):
     if pos:
         state.log(lg["refreshing"].format(pos))
         _device.click(*pos)
-        time.sleep(2)
+        time.sleep(1.5)
         w, h = _device.window_size()
         _device.click(w // 2 + 125, h // 2 + 125)
         with state._lock:
@@ -195,7 +195,7 @@ def bot_loop(idioma: str, max_refreshes: int):
 
         state.log(lg["scrolling"])
         _device.swipe_ext("up")
-        time.sleep(1)
+        time.sleep(0.5)
 
         bought |= _buy_all_visible(itens, bought, idioma)
         if state.stop_event.is_set():
@@ -203,7 +203,7 @@ def bot_loop(idioma: str, max_refreshes: int):
 
         _refresh_shop(idioma)
         ciclo += 1
-        time.sleep(5)
+        time.sleep(2)
 
     with state._lock:
         state.end_time = datetime.now()
