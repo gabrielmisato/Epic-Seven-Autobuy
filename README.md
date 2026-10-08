@@ -107,6 +107,8 @@ Each cycle performs the following steps:
 
 Purchases and refreshes are only counted when their confirmation dialog is found. If the refresh fails several times in a row (`MAX_REFRESH_FAILURES` in `config.py`, e.g. when out of Skystones), the bot stops by itself. Errors are shown in the log, with the full traceback in the console.
 
+Dialogs are searched for in up to `DIALOG_ATTEMPTS` screenshots (`config.py`). If a purchase dialog opens late and is left on top of the shop, the bot closes it with Cancel before refreshing.
+
 Monitored items:
 
 - Mystic Medals (50 per purchase, 280,000 gold each)

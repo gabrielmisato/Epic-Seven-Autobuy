@@ -10,7 +10,8 @@ MYSTIC_IDX   = 0
 BOOKMARK_IDX = 1
 FRIENDSHIP_IDX = 2
 
-DIALOG_TIMEOUT = 3
+DIALOG_ATTEMPTS = 3
+DIALOG_RETRY_DELAY = 0.5
 MAX_REFRESH_FAILURES = 3
 ROW_TOLERANCE_PX = 50
 
@@ -38,6 +39,7 @@ LOG = {
         "refreshing":     "Renovando em {}...",
         "no_refresh_btn": "Botão '{}' não encontrado!",
         "no_refresh_dialog": "Dialog de renovação não encontrado, renovação não confirmada.",
+        "dialog_closed":  "Janela aberta encontrada, fechando em Cancelar...",
         "refresh_aborted": "Renovação falhou {} vezes seguidas, encerrando.",
         "error":          "Erro: {}",
         "targets":        "Itens selecionados: {}",
@@ -57,6 +59,7 @@ LOG = {
         "refreshing":     "Refreshing at {}...",
         "no_refresh_btn": "'{}' button not found!",
         "no_refresh_dialog": "Refresh dialog not found, refresh not confirmed.",
+        "dialog_closed":  "Open dialog found, closing it with Cancel...",
         "refresh_aborted": "Refresh failed {} times in a row, stopping.",
         "error":          "Error: {}",
         "targets":        "Selected items: {}",

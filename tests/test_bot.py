@@ -27,8 +27,11 @@ class FakeDevice:
     BUY_CONFIRM = (600, 500)
     REFRESH_CONFIRM = (625, 625)  # w // 2 + 125, h // 2 + 125 com tela 1000x1000
 
-    def __init__(self, buy_dialog=True, refresh_dialog=True, item="Mystic", refresh_gray_only=False):
+    def __init__(self, buy_dialog=True, refresh_dialog=True, item="Mystic", refresh_gray_only=False,
+                 buy_dialog_delay=0):
         self.buy_dialog = buy_dialog
+        self.buy_dialog_delay = buy_dialog_delay  # leituras de OCR até a janela de compra aparecer
+        self.dialog_reads = 0
         self.refresh_gray_only = refresh_gray_only
         self.item = item
         self.refresh_dialog = refresh_dialog
@@ -51,6 +54,9 @@ class FakeDevice:
         if self.dialog == "refresh" and self.refresh_gray_only and not gray:
             return []
         if self.dialog == "buy":
+            self.dialog_reads += 1
+            if self.dialog_reads <= self.buy_dialog_delay:
+                return []
             return [("Cancel", 400, 500), ("Buy", *self.BUY_CONFIRM)]
         if self.dialog == "refresh":
             return [("Cancel", 400, 600), ("Confirm", *self.REFRESH_CONFIRM)]
@@ -70,6 +76,7 @@ class FakeDevice:
             self.dialog = None
         elif pos == self.BUY_BTN and self.buy_dialog:
             self.dialog = "buy"
+            self.dialog_reads = 0
         elif pos == self.REFRESH_BTN and self.refresh_dialog:
             self.dialog = "refresh"
 
@@ -77,11 +84,9 @@ class FakeDevice:
 class BotTestCase(unittest.TestCase):
     def setUp(self):
         self.device = FakeDevice()
-        wait_for_text = main._wait_for_text
         patches = [
             mock.patch("main.time.sleep"),
             mock.patch.object(main, "_ocr", lambda dev, gray=False: _ocr_data(dev.words(gray))),
-            mock.patch.object(main, "_wait_for_text", lambda text, timeout=0: wait_for_text(text, timeout)),
             mock.patch.object(main.u2, "connect", lambda addr: self.device),
         ]
         for p in patches:
@@ -139,6 +144,18 @@ class TestBotLoop(BotTestCase):
         self.assertEqual(self.device.bought, [])
         self.assertEqual(main.state.mystic_buys, 0)
         self.assertEqual(main.state.gold_spent, 0)
+
+    def test_waits_for_slow_purchase_dialog(self):
+        self.device.buy_dialog_delay = 2  # some na 1ª tentativa (leitura colorida + cinza)
+        self.run_bot(1)
+        self.assertEqual(main.state.mystic_buys, 2)
+
+    def test_closes_stray_dialog_before_refreshing(self):
+        self.device.buy_dialog_delay = 2 * main.DIALOG_ATTEMPTS  # aparece só depois que o bot desistiu
+        logs = self.run_bot(2)
+        self.assertEqual(main.state.mystic_buys, 0)
+        self.assertEqual(main.state.refreshes_done, 2)
+        self.assertTrue(any(LOG["en"]["dialog_closed"] in line for line in logs))
 
     def test_refresh_dialog_read_only_in_grayscale(self):
         self.device.refresh_gray_only = True

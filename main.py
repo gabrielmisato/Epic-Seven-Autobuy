@@ -14,7 +14,7 @@ from config import (
     BOOKMARK_AMOUNT, MYSTIC_AMOUNT, FRIENDSHIP_AMOUNT,
     BOOKMARK_GOLD, MYSTIC_GOLD, FRIENDSHIP_GOLD,
     MYSTIC_IDX, BOOKMARK_IDX, FRIENDSHIP_IDX,
-    DIALOG_TIMEOUT, MAX_REFRESH_FAILURES, ROW_TOLERANCE_PX,
+    DIALOG_ATTEMPTS, DIALOG_RETRY_DELAY, MAX_REFRESH_FAILURES, ROW_TOLERANCE_PX,
     ITENS, REFRESH_STR, CANCEL_STR, BUY_STR,
     LOG, UI,
 )
@@ -113,9 +113,11 @@ def _find_text_in_row(data: dict, text: str, y: int, min_x: int | None = None):
     return None
 
 
-def _wait_for_text(text: str, timeout: float = DIALOG_TIMEOUT):
-    deadline = time.monotonic() + timeout
-    while True:
+def _wait_for_text(text: str, attempts: int = DIALOG_ATTEMPTS):
+    data = {}
+    for attempt in range(attempts):
+        if attempt:
+            time.sleep(DIALOG_RETRY_DELAY)
         img = _screenshot()
         # A janela de renovação (texto claro sobre azul) só é lida em tons de cinza,
         # que por sua vez perdem textos da loja; por isso o cinza é só segunda tentativa.
@@ -124,9 +126,20 @@ def _wait_for_text(text: str, timeout: float = DIALOG_TIMEOUT):
             pos = _find_text(data, text)
             if pos:
                 return pos, data
-        if time.monotonic() >= deadline:
-            return None, data
-        time.sleep(0.25)
+    return None, data
+
+
+def _close_stray_dialog(idioma: str, data: dict | None = None) -> bool:
+    if data is not None:
+        cancel_pos = _find_text(data, CANCEL_STR[idioma])
+    else:
+        cancel_pos, _ = _wait_for_text(CANCEL_STR[idioma], attempts=1)
+    if not cancel_pos:
+        return False
+    state.log(LOG[idioma]["dialog_closed"])
+    _device.click(*cancel_pos)
+    time.sleep(1)
+    return True
 
 
 def _confirm_purchase(idioma: str) -> bool:
@@ -193,6 +206,10 @@ def _refresh_shop(idioma: str) -> bool:
     lg = LOG[idioma]
     data = _ocr(_screenshot())
     pos = _find_text(data, REFRESH_STR[idioma])
+    # Uma janela de compra que abriu depois que o bot desistiu dela fica por cima da loja:
+    # primeiro olha a leitura que já foi feita; sem Renovar, faz uma busca completa.
+    if _close_stray_dialog(idioma, data) or (not pos and _close_stray_dialog(idioma)):
+        pos = _find_text(_ocr(_screenshot()), REFRESH_STR[idioma])
     if not pos:
         state.log(lg["no_refresh_btn"].format(REFRESH_STR[idioma]))
         return False
