@@ -7,6 +7,7 @@ from tkinter import ttk, scrolledtext
 
 import uiautomator2 as u2
 import pytesseract
+from PIL import ImageOps
 
 from config import (
     SKYSTONES_PER_REFRESH,
@@ -82,7 +83,9 @@ def _screenshot():
     return _device.screenshot()
 
 
-def _ocr(img) -> dict:
+def _ocr(img, gray: bool = False) -> dict:
+    if gray:
+        img = ImageOps.grayscale(img)
     return pytesseract.image_to_data(img, lang='por', output_type=pytesseract.Output.DICT)
 
 
@@ -113,10 +116,16 @@ def _find_text_in_row(data: dict, text: str, y: int, min_x: int | None = None):
 def _wait_for_text(text: str, timeout: float = DIALOG_TIMEOUT):
     deadline = time.monotonic() + timeout
     while True:
-        data = _ocr(_screenshot())
-        pos = _find_text(data, text)
-        if pos or time.monotonic() >= deadline:
-            return pos, data
+        img = _screenshot()
+        # A janela de renovação (texto claro sobre azul) só é lida em tons de cinza,
+        # que por sua vez perdem textos da loja; por isso o cinza é só segunda tentativa.
+        for gray in (False, True):
+            data = _ocr(img, gray)
+            pos = _find_text(data, text)
+            if pos:
+                return pos, data
+        if time.monotonic() >= deadline:
+            return None, data
         time.sleep(0.25)
 
 

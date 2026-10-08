@@ -27,8 +27,9 @@ class FakeDevice:
     BUY_CONFIRM = (600, 500)
     REFRESH_CONFIRM = (625, 625)  # w // 2 + 125, h // 2 + 125 com tela 1000x1000
 
-    def __init__(self, buy_dialog=True, refresh_dialog=True, item="Mystic"):
+    def __init__(self, buy_dialog=True, refresh_dialog=True, item="Mystic", refresh_gray_only=False):
         self.buy_dialog = buy_dialog
+        self.refresh_gray_only = refresh_gray_only
         self.item = item
         self.refresh_dialog = refresh_dialog
         self.shop = 0
@@ -46,7 +47,9 @@ class FakeDevice:
     def swipe_ext(self, direction):
         pass
 
-    def words(self):
+    def words(self, gray=False):
+        if self.dialog == "refresh" and self.refresh_gray_only and not gray:
+            return []
         if self.dialog == "buy":
             return [("Cancel", 400, 500), ("Buy", *self.BUY_CONFIRM)]
         if self.dialog == "refresh":
@@ -77,7 +80,7 @@ class BotTestCase(unittest.TestCase):
         wait_for_text = main._wait_for_text
         patches = [
             mock.patch("main.time.sleep"),
-            mock.patch.object(main, "_ocr", lambda dev: _ocr_data(dev.words())),
+            mock.patch.object(main, "_ocr", lambda dev, gray=False: _ocr_data(dev.words(gray))),
             mock.patch.object(main, "_wait_for_text", lambda text, timeout=0: wait_for_text(text, timeout)),
             mock.patch.object(main.u2, "connect", lambda addr: self.device),
         ]
@@ -137,6 +140,12 @@ class TestBotLoop(BotTestCase):
         self.assertEqual(main.state.mystic_buys, 0)
         self.assertEqual(main.state.gold_spent, 0)
 
+    def test_refresh_dialog_read_only_in_grayscale(self):
+        self.device.refresh_gray_only = True
+        self.run_bot(2)
+        self.assertEqual(self.device.refreshes, 2)
+        self.assertEqual(main.state.refreshes_done, 2)
+
     def test_stops_after_repeated_refresh_failures(self):
         self.device.refresh_dialog = False
         logs = self.run_bot(5)
@@ -166,9 +175,9 @@ class TestApp(BotTestCase):
         gate = threading.Event()
         ocr = main._ocr
 
-        def blocking_ocr(dev):
+        def blocking_ocr(dev, gray=False):
             gate.wait()
-            return ocr(dev)
+            return ocr(dev, gray)
 
         with mock.patch.object(main, "_ocr", blocking_ocr):
             self.app.input_var.set("30")
