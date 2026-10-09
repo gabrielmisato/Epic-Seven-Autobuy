@@ -24,8 +24,8 @@ from config import (
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 _UI_LANG = "en"
-DEBUG_DIR = Path(tempfile.gettempdir()) / "secret_shop_bot"
 _UI = UI[_UI_LANG]
+DEBUG_DIR = Path(tempfile.gettempdir()) / "secret_shop_bot"
 
 
 class BotState:
