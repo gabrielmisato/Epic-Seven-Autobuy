@@ -115,6 +115,8 @@ Monitored items:
 - Covenant Bookmarks (5 per purchase, 184,000 gold each)
 - Friendship Points (50 per purchase, 18,000 gold each)
 
+Items are defined in the `ITEMS` table in `config.py` (names in both languages, price, quantity and statistics label). Adding an entry there is enough for the bot to buy it, list it in the item selection and count it in the statistics.
+
 ---
 
 ## Statistics

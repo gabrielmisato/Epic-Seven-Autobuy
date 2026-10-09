@@ -1,24 +1,29 @@
 SKYSTONES_PER_REFRESH = 3
-BOOKMARK_GOLD  = 184_000
-MYSTIC_GOLD    = 280_000
-FRIENDSHIP_GOLD = 18_000
-BOOKMARK_AMOUNT = 5
-MYSTIC_AMOUNT   = 50
-FRIENDSHIP_AMOUNT = 50
-
-MYSTIC_IDX   = 0
-BOOKMARK_IDX = 1
-FRIENDSHIP_IDX = 2
 
 DIALOG_ATTEMPTS = 3
 DIALOG_RETRY_DELAY = 0.5
 MAX_REFRESH_FAILURES = 3
 ROW_TOLERANCE_PX = 50
 
-ITENS = {
-    "en": ["Mystic Medals", "Covenant Bookmarks", "Friendship Points"],
-    "pt": ["Medalhas Místicas", "Marca-Páginas da Aliança", "Pontos de Amizade"],
-}
+# Itens da Loja Secreta que o bot sabe comprar. A ordem vale para a lista de seleção,
+# para a ordem de busca na tela e para as linhas das estatísticas.
+ITEMS = [
+    {
+        "key": "mystic", "gold": 280_000, "amount": 50,
+        "name": {"en": "Mystic Medals", "pt": "Medalhas Místicas"},
+        "stat_label": {"en": "Mystic Medals:", "pt": "Medalhas Místicas:"},
+    },
+    {
+        "key": "bookmark", "gold": 184_000, "amount": 5,
+        "name": {"en": "Covenant Bookmarks", "pt": "Marca-Páginas da Aliança"},
+        "stat_label": {"en": "Bookmarks:", "pt": "Marca-Páginas:"},
+    },
+    {
+        "key": "friendship", "gold": 18_000, "amount": 50,
+        "name": {"en": "Friendship Points", "pt": "Pontos de Amizade"},
+        "stat_label": {"en": "Friendship Points:", "pt": "Pontos de Amizade:"},
+    },
+]
 
 SOLD_OUT_STR = "0/1"
 
@@ -93,9 +98,6 @@ UI = {
         "lbl_end":      "Fim:",
         "lbl_duration": "Duração:",
         "lbl_refreshes":"Renovações:",
-        "lbl_bookmarks":"Marca-Páginas:",
-        "lbl_mystics":  "Medalhas Místicas:",
-        "lbl_friendship":"Pontos de Amizade:",
         "lbl_gold":     "Ouro gasto:",
         "purchases":    "compra(s)",
     },
@@ -116,9 +118,6 @@ UI = {
         "lbl_end":      "End:",
         "lbl_duration": "Duration:",
         "lbl_refreshes":"Refreshes:",
-        "lbl_bookmarks":"Bookmarks:",
-        "lbl_mystics":  "Mystic Medals:",
-        "lbl_friendship":"Friendship Points:",
         "lbl_gold":     "Gold spent:",
         "purchases":    "purchase(s)",
     },

@@ -13,11 +13,8 @@ from PIL import ImageOps
 
 from config import (
     SKYSTONES_PER_REFRESH,
-    BOOKMARK_AMOUNT, MYSTIC_AMOUNT, FRIENDSHIP_AMOUNT,
-    BOOKMARK_GOLD, MYSTIC_GOLD, FRIENDSHIP_GOLD,
-    MYSTIC_IDX, BOOKMARK_IDX, FRIENDSHIP_IDX,
     DIALOG_ATTEMPTS, DIALOG_RETRY_DELAY, MAX_REFRESH_FAILURES, ROW_TOLERANCE_PX,
-    ITENS, REFRESH_STR, CANCEL_STR, BUY_STR, SOLD_OUT_STR,
+    ITEMS, REFRESH_STR, CANCEL_STR, BUY_STR, SOLD_OUT_STR,
     LOG, UI,
 )
 
@@ -35,9 +32,7 @@ class BotState:
         self.end_time = None
         self.refreshes_done = 0
         self.max_refreshes = 0
-        self.bookmark_buys = 0
-        self.mystic_buys = 0
-        self.friendship_buys = 0
+        self.buys = {item["key"]: 0 for item in ITEMS}
         self.gold_spent = 0
         self._log = []
         self._lock = threading.Lock()
@@ -48,9 +43,7 @@ class BotState:
         self.end_time = None
         self.refreshes_done = 0
         self.max_refreshes = max_refreshes
-        self.bookmark_buys = 0
-        self.mystic_buys = 0
-        self.friendship_buys = 0
+        self.buys = {item["key"]: 0 for item in ITEMS}
         self.gold_spent = 0
         with self._lock:
             self._log = []
@@ -64,18 +57,6 @@ class BotState:
         with self._lock:
             out, self._log = self._log[:], []
             return out
-
-    @property
-    def bookmarks_total(self):
-        return self.bookmark_buys * BOOKMARK_AMOUNT
-
-    @property
-    def mystics_total(self):
-        return self.mystic_buys * MYSTIC_AMOUNT
-
-    @property
-    def friendship_total(self):
-        return self.friendship_buys * FRIENDSHIP_AMOUNT
 
 
 state = BotState()
@@ -175,7 +156,7 @@ def _confirm_purchase(idioma: str) -> bool:
     return False
 
 
-def _buy_item(pos, data: dict, item_idx: int, idioma: str) -> bool:
+def _buy_item(pos, data: dict, item: dict, idioma: str) -> bool:
     lg = LOG[idioma]
     buy_pos = _find_text_in_row(data, BUY_STR[idioma], pos[1])
     if buy_pos:
@@ -190,35 +171,29 @@ def _buy_item(pos, data: dict, item_idx: int, idioma: str) -> bool:
         return False
 
     with state._lock:
-        if item_idx == MYSTIC_IDX:
-            state.mystic_buys += 1
-            state.gold_spent += MYSTIC_GOLD
-        elif item_idx == BOOKMARK_IDX:
-            state.bookmark_buys += 1
-            state.gold_spent += BOOKMARK_GOLD
-        elif item_idx == FRIENDSHIP_IDX:
-            state.friendship_buys += 1
-            state.gold_spent += FRIENDSHIP_GOLD
+        state.buys[item["key"]] += 1
+        state.gold_spent += item["gold"]
     return True
 
 
-def _buy_all_visible(itens: list[tuple[int, str]], already_bought: set, idioma: str) -> set:
+def _buy_all_visible(itens: list[dict], already_bought: set, idioma: str) -> set:
     lg = LOG[idioma]
     newly = set()
-    for idx, item in itens:
-        if item in already_bought or state.stop_event.is_set():
+    for item in itens:
+        if item["key"] in already_bought or state.stop_event.is_set():
             continue
+        name = item["name"][idioma]
         data = _ocr(_screenshot())
-        pos = _find_text(data, item.split()[0])
+        pos = _find_text(data, name.split()[0])
         if not pos:
             continue
         if _find_text_in_row(data, SOLD_OUT_STR, pos[1]):
-            state.log(lg["sold_out"].format(item))
-            newly.add(item)
+            state.log(lg["sold_out"].format(name))
+            newly.add(item["key"])
             continue
-        state.log(lg["item_found"].format(item))
-        if _buy_item(pos, data, idx, idioma):
-            newly.add(item)
+        state.log(lg["item_found"].format(name))
+        if _buy_item(pos, data, item, idioma):
+            newly.add(item["key"])
     return newly
 
 
@@ -247,16 +222,13 @@ def _refresh_shop(idioma: str) -> bool:
     return True
 
 
-def bot_loop(idioma: str, max_refreshes: int, itens_idx: list[int] | None = None):
+def bot_loop(idioma: str, max_refreshes: int, item_keys: list[str] | None = None):
     global _device
     lg = LOG[idioma]
-    itens = [
-        (idx, item) for idx, item in enumerate(ITENS[idioma])
-        if itens_idx is None or idx in itens_idx
-    ]
+    itens = [item for item in ITEMS if item_keys is None or item["key"] in item_keys]
 
     try:
-        state.log(lg["targets"].format(", ".join(item for _, item in itens)))
+        state.log(lg["targets"].format(", ".join(item["name"][idioma] for item in itens)))
         state.log(lg["connecting"])
         _device = u2.connect("127.0.0.1:7555")
         state.log(lg["connected"])
@@ -311,7 +283,7 @@ class App(tk.Tk):
         self.lang_var = tk.StringVar(value="pt")
         self.mode_var = tk.StringVar(value="sky")
         self.input_var = tk.StringVar()
-        self.item_vars = [tk.BooleanVar(value=True) for _ in ITENS[_UI_LANG]]
+        self.item_vars = {item["key"]: tk.BooleanVar(value=True) for item in ITEMS}
         self._bot_thread = None
 
         self._build()
@@ -332,9 +304,10 @@ class App(tk.Tk):
         items_frame = tk.LabelFrame(left, text=_UI["items_label"], padx=6)
         items_frame.grid(row=1, column=0, columnspan=2, sticky="we", pady=4)
         self._item_checks = []
-        for item, var in zip(ITENS[_UI_LANG], self.item_vars, strict=True):
+        for item in ITEMS:
             check = tk.Checkbutton(
-                items_frame, text=item, variable=var, command=self._on_input_change,
+                items_frame, text=item["name"][_UI_LANG], variable=self.item_vars[item["key"]],
+                command=self._on_input_change,
             )
             check.pack(anchor="w")
             self._item_checks.append(check)
@@ -382,22 +355,20 @@ class App(tk.Tk):
 
         self._stat_labels = {}
         rows = [
-            ("lbl_start", "val_start"),
-            ("lbl_end", "val_end"),
-            ("lbl_duration", "val_duration"),
+            (_UI["lbl_start"], "val_start"),
+            (_UI["lbl_end"], "val_end"),
+            (_UI["lbl_duration"], "val_duration"),
             None,
-            ("lbl_refreshes", "val_refreshes"),
-            ("lbl_bookmarks", "val_bookmarks"),
-            ("lbl_mystics", "val_mystics"),
-            ("lbl_friendship", "val_friendship"),
-            ("lbl_gold", "val_gold"),
+            (_UI["lbl_refreshes"], "val_refreshes"),
+            *((item["stat_label"][_UI_LANG], f"val_{item['key']}") for item in ITEMS),
+            (_UI["lbl_gold"], "val_gold"),
         ]
         for r, entry in enumerate(rows):
             if entry is None:
                 tk.Frame(right, height=6).grid(row=r, column=0)
             else:
-                lk, vk = entry
-                tk.Label(right, text=_UI[lk], anchor="w").grid(row=r, column=0, sticky="w", pady=2)
+                label, vk = entry
+                tk.Label(right, text=label, anchor="w").grid(row=r, column=0, sticky="w", pady=2)
                 val = tk.Label(right, text="--", anchor="w", width=26)
                 val.grid(row=r, column=1, sticky="w")
                 self._stat_labels[vk] = val
@@ -453,8 +424,8 @@ class App(tk.Tk):
     def _on_start(self):
         if self._bot_thread and self._bot_thread.is_alive():
             return
-        itens_idx = [i for i, var in enumerate(self.item_vars) if var.get()]
-        if not itens_idx:
+        item_keys = [key for key, var in self.item_vars.items() if var.get()]
+        if not item_keys:
             self.lbl_error.config(text=_UI["no_items"])
             return
         max_ref = self._validate()
@@ -463,7 +434,7 @@ class App(tk.Tk):
         state.reset(max_ref)
         self._set_running(True)
         self._bot_thread = threading.Thread(
-            target=bot_loop, args=(self.lang_var.get(), max_ref, itens_idx), daemon=True,
+            target=bot_loop, args=(self.lang_var.get(), max_ref, item_keys), daemon=True,
         )
         self._bot_thread.start()
 
@@ -489,9 +460,9 @@ class App(tk.Tk):
         self._stat("val_end", fmt_time(s.end_time))
         self._stat("val_duration", fmt_duration())
         self._stat("val_refreshes", f"{s.refreshes_done} / {s.max_refreshes}")
-        self._stat("val_bookmarks", f"{s.bookmarks_total} ({s.bookmark_buys} {_UI['purchases']})")
-        self._stat("val_mystics", f"{s.mystics_total} ({s.mystic_buys} {_UI['purchases']})")
-        self._stat("val_friendship", f"{s.friendship_total} ({s.friendship_buys} {_UI['purchases']})")
+        for item in ITEMS:
+            buys = s.buys[item["key"]]
+            self._stat(f"val_{item['key']}", f"{buys * item['amount']} ({buys} {_UI['purchases']})")
         self._stat("val_gold", f"{s.gold_spent:,}".replace(",", "."))
 
         for msg in s.drain_logs():

@@ -6,7 +6,9 @@ from pathlib import Path
 from unittest import mock
 
 import main
-from config import LOG
+from config import ITEMS, LOG
+
+ITEM = {item["key"]: item for item in ITEMS}
 
 SAVE_DEBUG_SCREENSHOT = main._save_debug_screenshot
 
@@ -109,9 +111,9 @@ class BotTestCase(unittest.TestCase):
             p.start()
             self.addCleanup(p.stop)
 
-    def run_bot(self, max_refreshes, itens_idx=None):
+    def run_bot(self, max_refreshes, item_keys=None):
         main.state.reset(max_refreshes)
-        main.bot_loop("en", max_refreshes, itens_idx)
+        main.bot_loop("en", max_refreshes, item_keys)
         return main.state.drain_logs()
 
 
@@ -137,39 +139,38 @@ class TestBotLoop(BotTestCase):
     def test_counts_only_confirmed_purchases(self):
         self.run_bot(3)
         self.assertEqual(len(self.device.bought), 4)
-        self.assertEqual(main.state.mystic_buys, 4)
-        self.assertEqual(main.state.gold_spent, 4 * main.MYSTIC_GOLD)
+        self.assertEqual(main.state.buys["mystic"], 4)
+        self.assertEqual(main.state.gold_spent, 4 * ITEM["mystic"]["gold"])
 
     def test_counts_friendship_points_purchases(self):
         self.device.item = "Friendship"
         self.run_bot(1)
-        self.assertEqual(main.state.friendship_buys, 2)
-        self.assertEqual(main.state.friendship_total, 2 * main.FRIENDSHIP_AMOUNT)
-        self.assertEqual(main.state.gold_spent, 2 * main.FRIENDSHIP_GOLD)
-        self.assertEqual(main.state.mystic_buys, 0)
+        self.assertEqual(main.state.buys["friendship"], 2)
+        self.assertEqual(main.state.gold_spent, 2 * ITEM["friendship"]["gold"])
+        self.assertEqual(main.state.buys["mystic"], 0)
 
     def test_skips_unselected_items(self):
-        logs = self.run_bot(1, [main.BOOKMARK_IDX, main.FRIENDSHIP_IDX])
+        logs = self.run_bot(1, ["bookmark", "friendship"])
         self.assertEqual(self.device.bought, [])
-        self.assertEqual(main.state.mystic_buys, 0)
+        self.assertEqual(main.state.buys["mystic"], 0)
         self.assertTrue(any("Covenant Bookmarks, Friendship Points" in line for line in logs))
 
     def test_purchase_without_dialog_is_not_counted(self):
         self.device.buy_dialog = False
         self.run_bot(2)
         self.assertEqual(self.device.bought, [])
-        self.assertEqual(main.state.mystic_buys, 0)
+        self.assertEqual(main.state.buys["mystic"], 0)
         self.assertEqual(main.state.gold_spent, 0)
 
     def test_waits_for_slow_purchase_dialog(self):
         self.device.buy_dialog_delay = 2  # some na 1ª tentativa (leitura colorida + cinza)
         self.run_bot(1)
-        self.assertEqual(main.state.mystic_buys, 2)
+        self.assertEqual(main.state.buys["mystic"], 2)
 
     def test_closes_stray_dialog_before_refreshing(self):
         self.device.buy_dialog_delay = 2 * main.DIALOG_ATTEMPTS  # aparece só depois que o bot desistiu
         logs = self.run_bot(2)
-        self.assertEqual(main.state.mystic_buys, 0)
+        self.assertEqual(main.state.buys["mystic"], 0)
         self.assertEqual(main.state.refreshes_done, 2)
         self.assertTrue(any(LOG["en"]["dialog_closed"] in line for line in logs))
 
@@ -182,9 +183,9 @@ class TestBotLoop(BotTestCase):
 
     def test_does_not_rebuy_while_refresh_fails(self):
         self.device.refresh_dialog = False
-        self.run_bot(1, [main.MYSTIC_IDX])
+        self.run_bot(1, ["mystic"])
         self.assertEqual(len(self.device.bought), 1)
-        self.assertEqual(main.state.mystic_buys, 1)
+        self.assertEqual(main.state.buys["mystic"], 1)
 
     def test_skips_sold_out_item(self):
         self.device.sold_out = True
@@ -196,7 +197,7 @@ class TestBotLoop(BotTestCase):
 
     def test_retries_refresh_button(self):
         self.device.refresh_misses_after_swipe = 2  # some na 1ª tentativa (leitura colorida + cinza)
-        self.run_bot(1, [main.MYSTIC_IDX])
+        self.run_bot(1, ["mystic"])
         self.assertEqual(main.state.refreshes_done, 1)
 
     def test_debug_screenshot_failure_does_not_stop_bot(self):
@@ -268,7 +269,7 @@ class TestApp(BotTestCase):
         self.assertEqual(str(self.app.btn_start["state"]), "normal")
 
     def test_start_requires_at_least_one_item(self):
-        for var in self.app.item_vars:
+        for var in self.app.item_vars.values():
             var.set(False)
         self.app.input_var.set("30")
         self.app._on_start()
@@ -276,7 +277,7 @@ class TestApp(BotTestCase):
         self.assertEqual(self.app.lbl_error["text"], main._UI["no_items"])
 
     def test_start_buys_only_selected_items(self):
-        self.app.item_vars[main.MYSTIC_IDX].set(False)
+        self.app.item_vars["mystic"].set(False)
         self.app.input_var.set("3")
         self.app._on_start()
         thread = self.app._bot_thread
@@ -286,7 +287,7 @@ class TestApp(BotTestCase):
         thread.join(5)
         self.assertFalse(thread.is_alive())
         self.assertEqual(self.device.bought, [])
-        self.assertEqual(main.state.mystic_buys, 0)
+        self.assertEqual(main.state.buys["mystic"], 0)
 
         self.app._poll()
         self.assertTrue(all(str(c["state"]) == "normal" for c in self.app._item_checks))
