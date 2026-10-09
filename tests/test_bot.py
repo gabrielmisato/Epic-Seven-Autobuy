@@ -108,6 +108,7 @@ class BotTestCase(unittest.TestCase):
         self.device = FakeDevice()
         patches = [
             mock.patch("main.time.sleep"),
+            mock.patch.object(main, "_pause", lambda seconds: main.state.stop_event.is_set()),
             mock.patch.object(main, "_ocr", lambda dev, gray=False: _ocr_data(dev.words(gray))),
             mock.patch.object(main.u2, "connect", lambda addr: self.device),
             mock.patch.object(main, "_save_debug_screenshot"),
@@ -283,6 +284,55 @@ class TestBotLoop(BotTestCase):
         self.assertEqual(bought, set())
         self.assertIsNone(self.device.dialog)  # fechada em Cancelar ainda na passada de compra
         self.assertEqual(self.device.bought, [])
+
+    def count_reads_searching(self, text, **kwargs):
+        reads = []
+        ocr = main._ocr
+
+        def counting_ocr(dev, gray=False):
+            reads.append(gray)
+            return ocr(dev, gray)
+
+        main._device = self.device
+        with mock.patch.object(main, "_ocr", counting_ocr):
+            pos, _, _ = main._wait_for_text(text, **kwargs)
+        return pos, len(reads)
+
+    def test_stop_cuts_stoppable_search(self):
+        main.state.reset(1)
+        main.state.stop_event.set()
+        self.assertEqual(self.count_reads_searching("Nowhere", stoppable=True), (None, 2))  # 1 tentativa
+
+    def test_stop_does_not_cut_search_for_own_dialog(self):
+        main.state.reset(1)
+        main.state.stop_event.set()
+        self.assertEqual(self.count_reads_searching("Nowhere"), (None, 2 * main.DIALOG_ATTEMPTS))
+
+    def test_stop_during_refresh_search_ends_without_failure(self):
+        self.device.refresh_misses_after_swipe = 100  # Renovar nunca aparece
+
+        def stop_on_retry(seconds):
+            if seconds == main.DIALOG_RETRY_DELAY:  # 1ª pausa entre tentativas da busca do Renovar
+                main.state.stop_event.set()
+            return main.state.stop_event.is_set()
+
+        with mock.patch.object(main, "_pause", stop_on_retry), \
+                mock.patch.object(main, "_save_debug_screenshot") as save:
+            logs = self.run_bot(5, ["mystic"])
+        save.assert_not_called()
+        self.assertEqual(main.state.refreshes_done, 0)
+        self.assertFalse(any(LOG["en"]["refresh_aborted"].format(main.MAX_REFRESH_FAILURES) in line
+                             for line in logs))
+        self.assertIsNotNone(main.state.end_time)
+
+    def test_stop_does_not_leave_purchase_dialog_open(self):
+        self.device.buy_dialog_delay = 2  # janela de compra só aparece na 2ª tentativa
+        main._device = self.device
+        main.state.reset(1)
+        self.device.click(*FakeDevice.BUY_BTN)  # bot já clicou em Comprar
+        main.state.stop_event.set()  # usuário aperta Parar enquanto a janela abre
+        self.assertTrue(main._confirm_purchase("en"))
+        self.assertIsNone(self.device.dialog)
 
     def test_refresh_dialog_read_only_in_grayscale(self):
         self.device.refresh_gray_only = True

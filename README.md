@@ -91,7 +91,7 @@ python main.py
 
 4. **Start** - launches the bot. The Secret Shop must already be open before clicking.
 
-5. **Stop** - asks the bot to stop. It finishes the action in progress (e.g. a purchase being confirmed) and stops before the next one, without completing the cycle. **Start** becomes available again only after the bot has actually stopped.
+5. **Stop** - asks the bot to stop. It finishes the action in progress (e.g. a purchase or refresh being confirmed, so no dialog is left open) and stops before the next one, without completing the cycle. Pauses between cycles, the wait after scrolling and repeated searches for the Refresh button are cut short. **Start** becomes available again only after the bot has actually stopped.
 
 ---
 

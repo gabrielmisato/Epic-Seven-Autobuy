@@ -97,12 +97,24 @@ def _find_text_in_row(data: dict, text: str, y: int, min_x: int | None = None):
     return None
 
 
-def _wait_for_text(text: str, attempts: int = DIALOG_ATTEMPTS):
-    """Procura o texto em até `attempts` prints; devolve (posição, leitura, imagem analisada)."""
+def _pause(seconds: float) -> bool:
+    """Espera, mas acorda assim que o usuário aperta Parar. Devolve True se foi parado."""
+    return state.stop_event.wait(seconds)
+
+
+def _wait_for_text(text: str, attempts: int = DIALOG_ATTEMPTS, stoppable: bool = False):
+    """Procura o texto em até `attempts` prints; devolve (posição, leitura, imagem analisada).
+
+    stoppable=True deixa o Parar encerrar a busca entre tentativas. Fica desligado quando o bot
+    espera uma janela que ele mesmo abriu, para não deixá-la aberta na tela.
+    """
     data, img = {}, None
     for attempt in range(attempts):
         if attempt:
-            time.sleep(DIALOG_RETRY_DELAY)
+            if not stoppable:
+                time.sleep(DIALOG_RETRY_DELAY)
+            elif _pause(DIALOG_RETRY_DELAY):
+                break
         img = _screenshot()
         # A janela de renovação (texto claro sobre azul) só é lida em tons de cinza,
         # que por sua vez perdem textos da loja; por isso o cinza é só segunda tentativa.
@@ -210,11 +222,13 @@ def _buy_all_visible(itens: list[dict], already_bought: set, idioma: str) -> set
 
 def _refresh_shop(idioma: str) -> bool:
     lg = LOG[idioma]
-    pos, data, img = _wait_for_text(REFRESH_STR[idioma])
+    pos, data, img = _wait_for_text(REFRESH_STR[idioma], stoppable=True)
     # Uma janela de compra que abriu depois que o bot desistiu dela fica por cima da loja:
     # primeiro olha a leitura que já foi feita; sem Renovar, faz uma busca completa.
     if _close_stray_dialog(idioma, data) or (not pos and _close_stray_dialog(idioma)):
-        pos, _, img = _wait_for_text(REFRESH_STR[idioma])
+        pos, _, img = _wait_for_text(REFRESH_STR[idioma], stoppable=True)
+    if state.stop_event.is_set():
+        return False
     if not pos:
         state.log(lg["no_refresh_btn"].format(REFRESH_STR[idioma]))
         _save_debug_screenshot(idioma, "no_refresh_btn", img)
@@ -262,7 +276,8 @@ def bot_loop(idioma: str, max_refreshes: int, item_keys: list[str] | None = None
 
             state.log(lg["scrolling"])
             _device.swipe_ext("up")
-            time.sleep(SCROLL_SETTLE_DELAY)
+            if _pause(SCROLL_SETTLE_DELAY):
+                break
 
             bought |= _buy_all_visible(itens, bought, idioma)
             if state.stop_event.is_set():
@@ -272,7 +287,10 @@ def bot_loop(idioma: str, max_refreshes: int, item_keys: list[str] | None = None
                 state.log(lg["max_reached"])
                 break
 
-            if _refresh_shop(idioma):
+            refreshed = _refresh_shop(idioma)
+            if state.stop_event.is_set():
+                break
+            if refreshed:
                 refresh_failures = 0
                 bought = set()
             else:
@@ -281,7 +299,7 @@ def bot_loop(idioma: str, max_refreshes: int, item_keys: list[str] | None = None
                     state.log(lg["refresh_aborted"].format(refresh_failures))
                     break
             ciclo += 1
-            time.sleep(2)
+            _pause(2)
     except Exception as e:
         traceback.print_exc()
         state.log(lg["error"].format(f"{type(e).__name__}: {e}"))
