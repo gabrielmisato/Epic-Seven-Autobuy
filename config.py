@@ -20,7 +20,7 @@ ITENS = {
     "pt": ["Medalhas Místicas", "Marca-Páginas da Aliança", "Pontos de Amizade"],
 }
 
-SOLD_OUT_STR = "0/"
+SOLD_OUT_STR = "0/1"
 
 REFRESH_STR = {"en": "Refresh", "pt": "Renovar"}
 CANCEL_STR  = {"en": "Cancel",  "pt": "Cancelar"}
