@@ -2,6 +2,7 @@ SKYSTONES_PER_REFRESH = 3
 
 DIALOG_ATTEMPTS = 3
 DIALOG_RETRY_DELAY = 0.5
+SCROLL_SETTLE_DELAY = 1.0  # espera a lista parar depois de rolar, antes de ler a tela
 MAX_REFRESH_FAILURES = 3
 ROW_TOLERANCE_PX = 50
 DEBUG_MAX_FILES = 50  # prints de diagnóstico mantidos em %TEMP%\secret_shop_bot

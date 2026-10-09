@@ -13,7 +13,7 @@ from PIL import ImageOps
 
 from config import (
     SKYSTONES_PER_REFRESH,
-    DIALOG_ATTEMPTS, DIALOG_RETRY_DELAY, MAX_REFRESH_FAILURES, ROW_TOLERANCE_PX, DEBUG_MAX_FILES,
+    DIALOG_ATTEMPTS, DIALOG_RETRY_DELAY, SCROLL_SETTLE_DELAY, MAX_REFRESH_FAILURES, ROW_TOLERANCE_PX, DEBUG_MAX_FILES,
     ITEMS, REFRESH_STR, CANCEL_STR, BUY_STR, SOLD_OUT_STR,
     LOG, UI,
 )
@@ -184,11 +184,13 @@ def _buy_item(pos, data: dict, item: dict, idioma: str) -> bool:
 def _buy_all_visible(itens: list[dict], already_bought: set, idioma: str) -> set:
     lg = LOG[idioma]
     newly = set()
+    data = None  # a mesma leitura serve para todos os itens até o bot clicar em algo
     for item in itens:
         if item["key"] in already_bought or state.stop_event.is_set():
             continue
         name = item["name"][idioma]
-        data = _ocr(_screenshot())
+        if data is None:
+            data = _ocr(_screenshot())
         pos = _find_text(data, name.split()[0])
         if not pos:
             continue
@@ -199,6 +201,7 @@ def _buy_all_visible(itens: list[dict], already_bought: set, idioma: str) -> set
         state.log(lg["item_found"].format(name))
         if _buy_item(pos, data, item, idioma):
             newly.add(item["key"])
+        data = None  # houve clique: a tela mudou
     return newly
 
 
@@ -251,7 +254,7 @@ def bot_loop(idioma: str, max_refreshes: int, item_keys: list[str] | None = None
 
             state.log(lg["scrolling"])
             _device.swipe_ext("up")
-            time.sleep(0.5)
+            time.sleep(SCROLL_SETTLE_DELAY)
 
             bought |= _buy_all_visible(itens, bought, idioma)
             if state.stop_event.is_set():

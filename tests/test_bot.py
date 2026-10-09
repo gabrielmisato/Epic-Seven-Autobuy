@@ -149,6 +149,29 @@ class TestBotLoop(BotTestCase):
         self.assertEqual(main.state.gold_spent, 2 * ITEM["friendship"]["gold"])
         self.assertEqual(main.state.buys["mystic"], 0)
 
+    def buy_pass_counting_shop_reads(self):
+        """Roda uma passada de compra e conta as leituras feitas com a loja na tela (sem janela)."""
+        shop_reads = []
+        ocr = main._ocr
+
+        def counting_ocr(dev, gray=False):
+            if dev.dialog is None:
+                shop_reads.append(dev.shop)
+            return ocr(dev, gray)
+
+        main._device = self.device
+        with mock.patch.object(main, "_ocr", counting_ocr):
+            bought = main._buy_all_visible(list(ITEMS), set(), "en")
+        return bought, len(shop_reads)
+
+    def test_reads_screen_once_per_pass_until_a_click(self):
+        self.device.item = "Nothing"  # nenhum item alvo na tela
+        self.assertEqual(self.buy_pass_counting_shop_reads(), (set(), 1))
+
+    def test_rereads_screen_after_a_purchase(self):
+        # antes da compra e depois do clique (os outros itens usam a leitura nova)
+        self.assertEqual(self.buy_pass_counting_shop_reads(), ({"mystic"}, 2))
+
     def test_skips_unselected_items(self):
         logs = self.run_bot(1, ["bookmark", "friendship"])
         self.assertEqual(self.device.bought, [])
