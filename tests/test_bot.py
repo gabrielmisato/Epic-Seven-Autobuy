@@ -211,6 +211,28 @@ class TestBotLoop(BotTestCase):
         self.assertTrue(any(expected in line for line in logs))
         self.assertTrue(any("Could not save screenshot" in line for line in logs))
 
+    def test_debug_screenshot_uses_analysed_image(self):
+        self.device.refresh_dialog = False
+        with mock.patch.object(main, "_save_debug_screenshot") as save:
+            self.run_bot(1)
+        self.assertTrue(save.call_args_list)
+        self.assertTrue(all(c.args[2] is self.device for c in save.call_args_list))
+
+    def test_debug_screenshots_keep_only_latest(self):
+        class Img:
+            def save(self, path):
+                Path(path).write_bytes(b"png")
+
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(main, "DEBUG_DIR", Path(tmp)), \
+                mock.patch.object(main, "DEBUG_MAX_FILES", 3), \
+                mock.patch.object(main, "datetime", wraps=main.datetime) as fake_dt:
+            for second in range(5):
+                fake_dt.now.return_value = main.datetime(2026, 10, 9, 14, 0, second)
+                SAVE_DEBUG_SCREENSHOT("en", "no_dialog", Img())
+            names = sorted(p.name for p in Path(tmp).glob("*.png"))
+        self.assertEqual(names, [f"20261009-14000{s}-000-no_dialog.png" for s in (2, 3, 4)])
+
     def test_refresh_dialog_read_only_in_grayscale(self):
         self.device.refresh_gray_only = True
         self.run_bot(2)

@@ -4,6 +4,7 @@ DIALOG_ATTEMPTS = 3
 DIALOG_RETRY_DELAY = 0.5
 MAX_REFRESH_FAILURES = 3
 ROW_TOLERANCE_PX = 50
+DEBUG_MAX_FILES = 50  # prints de diagnóstico mantidos em %TEMP%\secret_shop_bot
 
 # Itens da Loja Secreta que o bot sabe comprar. A ordem vale para a lista de seleção,
 # para a ordem de busca na tela e para as linhas das estatísticas.

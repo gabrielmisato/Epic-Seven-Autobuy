@@ -13,7 +13,7 @@ from PIL import ImageOps
 
 from config import (
     SKYSTONES_PER_REFRESH,
-    DIALOG_ATTEMPTS, DIALOG_RETRY_DELAY, MAX_REFRESH_FAILURES, ROW_TOLERANCE_PX,
+    DIALOG_ATTEMPTS, DIALOG_RETRY_DELAY, MAX_REFRESH_FAILURES, ROW_TOLERANCE_PX, DEBUG_MAX_FILES,
     ITEMS, REFRESH_STR, CANCEL_STR, BUY_STR, SOLD_OUT_STR,
     LOG, UI,
 )
@@ -98,7 +98,8 @@ def _find_text_in_row(data: dict, text: str, y: int, min_x: int | None = None):
 
 
 def _wait_for_text(text: str, attempts: int = DIALOG_ATTEMPTS):
-    data = {}
+    """Procura o texto em até `attempts` prints; devolve (posição, leitura, imagem analisada)."""
+    data, img = {}, None
     for attempt in range(attempts):
         if attempt:
             time.sleep(DIALOG_RETRY_DELAY)
@@ -109,16 +110,20 @@ def _wait_for_text(text: str, attempts: int = DIALOG_ATTEMPTS):
             data = _ocr(img, gray)
             pos = _find_text(data, text)
             if pos:
-                return pos, data
-    return None, data
+                return pos, data, img
+    return None, data, img
 
 
-def _save_debug_screenshot(idioma: str, reason: str):
+def _save_debug_screenshot(idioma: str, reason: str, img=None):
     # Diagnóstico não pode derrubar o bot: uma falha ao salvar só vai para o log.
+    # Salva a imagem que o OCR analisou (um print novo pode já mostrar outra tela).
     try:
         DEBUG_DIR.mkdir(parents=True, exist_ok=True)
-        path = DEBUG_DIR / f"{datetime.now():%Y%m%d-%H%M%S}-{reason}.png"
-        _screenshot().save(path)
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")[:-3]
+        path = DEBUG_DIR / f"{stamp}-{reason}.png"
+        (img if img is not None else _screenshot()).save(path)
+        for old in sorted(DEBUG_DIR.glob("*.png"))[:-DEBUG_MAX_FILES]:
+            old.unlink()
     except Exception as e:
         state.log(LOG[idioma]["debug_failed"].format(f"{type(e).__name__}: {e}"))
         return
@@ -129,7 +134,7 @@ def _close_stray_dialog(idioma: str, data: dict | None = None) -> bool:
     if data is not None:
         cancel_pos = _find_text(data, CANCEL_STR[idioma])
     else:
-        cancel_pos, _ = _wait_for_text(CANCEL_STR[idioma], attempts=1)
+        cancel_pos, _, _ = _wait_for_text(CANCEL_STR[idioma], attempts=1)
     if not cancel_pos:
         return False
     state.log(LOG[idioma]["dialog_closed"])
@@ -141,10 +146,10 @@ def _close_stray_dialog(idioma: str, data: dict | None = None) -> bool:
 def _confirm_purchase(idioma: str) -> bool:
     lg = LOG[idioma]
     time.sleep(0.5)
-    cancel_pos, data = _wait_for_text(CANCEL_STR[idioma])
+    cancel_pos, data, img = _wait_for_text(CANCEL_STR[idioma])
     if not cancel_pos:
         state.log(lg["no_dialog"])
-        _save_debug_screenshot(idioma, "no_dialog")
+        _save_debug_screenshot(idioma, "no_dialog", img)
         return False
     confirm_pos = _find_text_in_row(data, BUY_STR[idioma], cancel_pos[1], min_x=cancel_pos[0])
     if confirm_pos:
@@ -199,21 +204,22 @@ def _buy_all_visible(itens: list[dict], already_bought: set, idioma: str) -> set
 
 def _refresh_shop(idioma: str) -> bool:
     lg = LOG[idioma]
-    pos, data = _wait_for_text(REFRESH_STR[idioma])
+    pos, data, img = _wait_for_text(REFRESH_STR[idioma])
     # Uma janela de compra que abriu depois que o bot desistiu dela fica por cima da loja:
     # primeiro olha a leitura que já foi feita; sem Renovar, faz uma busca completa.
     if _close_stray_dialog(idioma, data) or (not pos and _close_stray_dialog(idioma)):
-        pos, _ = _wait_for_text(REFRESH_STR[idioma])
+        pos, _, img = _wait_for_text(REFRESH_STR[idioma])
     if not pos:
         state.log(lg["no_refresh_btn"].format(REFRESH_STR[idioma]))
-        _save_debug_screenshot(idioma, "no_refresh_btn")
+        _save_debug_screenshot(idioma, "no_refresh_btn", img)
         return False
     state.log(lg["refreshing"].format(pos))
     _device.click(*pos)
     time.sleep(1.5)
-    if not _wait_for_text(CANCEL_STR[idioma])[0]:
+    found, _, img = _wait_for_text(CANCEL_STR[idioma])
+    if not found:
         state.log(lg["no_refresh_dialog"])
-        _save_debug_screenshot(idioma, "no_refresh_dialog")
+        _save_debug_screenshot(idioma, "no_refresh_dialog", img)
         return False
     w, h = _device.window_size()
     _device.click(w // 2 + 125, h // 2 + 125)
