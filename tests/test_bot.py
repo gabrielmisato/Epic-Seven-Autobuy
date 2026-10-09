@@ -1,10 +1,14 @@
+import tempfile
 import threading
 import tkinter as tk
 import unittest
+from pathlib import Path
 from unittest import mock
 
 import main
 from config import LOG
+
+SAVE_DEBUG_SCREENSHOT = main._save_debug_screenshot
 
 
 def _ocr_data(words, conf=None):
@@ -194,6 +198,17 @@ class TestBotLoop(BotTestCase):
         self.device.refresh_misses_after_swipe = 2  # some na 1ª tentativa (leitura colorida + cinza)
         self.run_bot(1, [main.MYSTIC_IDX])
         self.assertEqual(main.state.refreshes_done, 1)
+
+    def test_debug_screenshot_failure_does_not_stop_bot(self):
+        self.device.refresh_dialog = False  # FakeDevice.screenshot() não tem .save(): o print falha
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(main, "DEBUG_DIR", Path(tmp)), \
+                mock.patch.object(main, "_save_debug_screenshot", SAVE_DEBUG_SCREENSHOT):
+            logs = self.run_bot(1)
+        self.assertFalse(any("] Error:" in line for line in logs))  # mensagem de erro do bot_loop
+        expected = LOG["en"]["refresh_aborted"].format(main.MAX_REFRESH_FAILURES)
+        self.assertTrue(any(expected in line for line in logs))
+        self.assertTrue(any("Could not save screenshot" in line for line in logs))
 
     def test_refresh_dialog_read_only_in_grayscale(self):
         self.device.refresh_gray_only = True

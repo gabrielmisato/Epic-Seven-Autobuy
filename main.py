@@ -133,9 +133,14 @@ def _wait_for_text(text: str, attempts: int = DIALOG_ATTEMPTS):
 
 
 def _save_debug_screenshot(idioma: str, reason: str):
-    DEBUG_DIR.mkdir(exist_ok=True)
-    path = DEBUG_DIR / f"{datetime.now():%Y%m%d-%H%M%S}-{reason}.png"
-    _screenshot().save(path)
+    # Diagnóstico não pode derrubar o bot: uma falha ao salvar só vai para o log.
+    try:
+        DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+        path = DEBUG_DIR / f"{datetime.now():%Y%m%d-%H%M%S}-{reason}.png"
+        _screenshot().save(path)
+    except Exception as e:
+        state.log(LOG[idioma]["debug_failed"].format(f"{type(e).__name__}: {e}"))
+        return
     state.log(LOG[idioma]["debug_saved"].format(path))
 
 
