@@ -14,7 +14,7 @@ from PIL import ImageOps
 from config import (
     SKYSTONES_PER_REFRESH,
     DIALOG_ATTEMPTS, DIALOG_RETRY_DELAY, SCROLL_SETTLE_DELAY, MAX_REFRESH_FAILURES, ROW_TOLERANCE_PX, DEBUG_MAX_FILES,
-    ITEMS, REFRESH_STR, CANCEL_STR, BUY_STR, SOLD_OUT_STR,
+    ITEMS, REFRESH_STR, CANCEL_STR, BUY_STR, CONFIRM_STR, SOLD_OUT_STR,
     LOG, UI,
 )
 
@@ -191,6 +191,9 @@ def _buy_all_visible(itens: list[dict], already_bought: set, idioma: str) -> set
         name = item["name"][idioma]
         if data is None:
             data = _ocr(_screenshot())
+            # Janela de compra que abriu depois que o bot desistiu dela: fecha antes de seguir.
+            if _close_stray_dialog(idioma, data):
+                data = _ocr(_screenshot())
         pos = _find_text(data, name.split()[0])
         if not pos:
             continue
@@ -219,13 +222,18 @@ def _refresh_shop(idioma: str) -> bool:
     state.log(lg["refreshing"].format(pos))
     _device.click(*pos)
     time.sleep(1.5)
-    found, _, img = _wait_for_text(CANCEL_STR[idioma])
-    if not found:
-        state.log(lg["no_refresh_dialog"])
-        _save_debug_screenshot(idioma, "no_refresh_dialog", img)
-        return False
-    w, h = _device.window_size()
-    _device.click(w // 2 + 125, h // 2 + 125)
+    confirm_pos, _, img = _wait_for_text(CONFIRM_STR[idioma])
+    if confirm_pos:
+        _device.click(*confirm_pos)
+    else:
+        # Sem o Confirmar legível, mantém o jeito antigo: janela com Cancelar + clique na posição fixa.
+        found, _, img = _wait_for_text(CANCEL_STR[idioma], attempts=1)
+        if not found:
+            state.log(lg["no_refresh_dialog"])
+            _save_debug_screenshot(idioma, "no_refresh_dialog", img)
+            return False
+        w, h = _device.window_size()
+        _device.click(w // 2 + 125, h // 2 + 125)
     with state._lock:
         state.refreshes_done += 1
     return True

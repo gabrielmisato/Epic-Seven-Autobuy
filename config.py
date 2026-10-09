@@ -32,6 +32,8 @@ SOLD_OUT_STR = "0/1"
 REFRESH_STR = {"en": "Refresh", "pt": "Renovar"}
 CANCEL_STR  = {"en": "Cancel",  "pt": "Cancelar"}
 BUY_STR     = {"en": "Buy",     "pt": "Comprar"}
+# Só a janela de renovação tem este botão; a de compra tem Cancelar e Comprar.
+CONFIRM_STR = {"en": "Confirm", "pt": "Confirmar"}
 
 LOG = {
     "pt": {

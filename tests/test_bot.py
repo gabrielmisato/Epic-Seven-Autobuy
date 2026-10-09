@@ -31,7 +31,8 @@ class FakeDevice:
     BUY_BTN = (300, 100)
     REFRESH_BTN = (500, 900)
     BUY_CONFIRM = (600, 500)
-    REFRESH_CONFIRM = (625, 625)  # w // 2 + 125, h // 2 + 125 com tela 1000x1000
+    REFRESH_CONFIRM = (640, 610)  # onde o OCR lê "Confirm"
+    REFRESH_BLIND = (625, 625)  # w // 2 + 125, h // 2 + 125 com tela 1000x1000, também sobre o botão
 
     def __init__(self):
         # Comportamentos que cada teste pode trocar depois de criar o dispositivo
@@ -39,6 +40,7 @@ class FakeDevice:
         self.buy_dialog = True
         self.refresh_dialog = True
         self.refresh_gray_only = False
+        self.refresh_confirm_unreadable = False
         self.sold_out = False
         self.buy_dialog_delay = 0  # leituras de OCR até a janela de compra aparecer
         self.refresh_misses_after_swipe = 0  # leituras sem Renovar após rolar
@@ -69,7 +71,10 @@ class FakeDevice:
                 return []
             return [("Cancel", 400, 500), ("Buy", *self.BUY_CONFIRM)]
         if self.dialog == "refresh":
-            return [("Cancel", 400, 600), ("Confirm", *self.REFRESH_CONFIRM)]
+            words = [("Cancel", 400, 600)]
+            if not self.refresh_confirm_unreadable:
+                words.append(("Confirm", *self.REFRESH_CONFIRM))
+            return words
         self.scanned.add(self.shop)
         words = [(self.item, 0, 100), ("Buy", *self.BUY_BTN)]
         if self.sold_out:
@@ -87,7 +92,7 @@ class FakeDevice:
                 self.bought.append(self.shop)
             self.dialog = None
         elif self.dialog == "refresh":
-            if pos == self.REFRESH_CONFIRM:
+            if pos in (self.REFRESH_CONFIRM, self.REFRESH_BLIND):
                 self.shop += 1
                 self.refreshes += 1
             self.dialog = None
@@ -255,6 +260,29 @@ class TestBotLoop(BotTestCase):
                 SAVE_DEBUG_SCREENSHOT("en", "no_dialog", Img())
             names = sorted(p.name for p in Path(tmp).glob("*.png"))
         self.assertEqual(names, [f"20261009-14000{s}-000-no_dialog.png" for s in (2, 3, 4)])
+
+    def test_confirms_refresh_where_ocr_reads_confirm(self):
+        clicks = []
+        click = self.device.click
+        with mock.patch.object(self.device, "click", side_effect=lambda x, y: (clicks.append((x, y)), click(x, y))):
+            self.run_bot(1, ["mystic"])
+        self.assertEqual(main.state.refreshes_done, 1)
+        self.assertIn(FakeDevice.REFRESH_CONFIRM, clicks)
+        self.assertNotIn(FakeDevice.REFRESH_BLIND, clicks)
+
+    def test_refresh_falls_back_to_fixed_click_without_confirm(self):
+        self.device.refresh_confirm_unreadable = True
+        self.run_bot(2)
+        self.assertEqual(self.device.refreshes, 2)
+        self.assertEqual(main.state.refreshes_done, 2)
+
+    def test_closes_stray_dialog_during_purchase_pass(self):
+        self.device.buy_dialog_delay = 2 * main.DIALOG_ATTEMPTS  # aparece só depois que o bot desistiu
+        main._device = self.device
+        bought = main._buy_all_visible(list(ITEMS), set(), "en")
+        self.assertEqual(bought, set())
+        self.assertIsNone(self.device.dialog)  # fechada em Cancelar ainda na passada de compra
+        self.assertEqual(self.device.bought, [])
 
     def test_refresh_dialog_read_only_in_grayscale(self):
         self.device.refresh_gray_only = True

@@ -107,7 +107,7 @@ Each cycle performs the following steps:
 
 Purchases and refreshes are only counted when their confirmation dialog is found. If the refresh fails several times in a row (`MAX_REFRESH_FAILURES` in `config.py`, e.g. when out of Skystones), the bot stops by itself. Errors are shown in the log, with the full traceback in the console.
 
-Items already bought in the current shop (shown as `0/1`) are skipped, and the bot remembers what it bought until a refresh actually happens. Dialogs and the Refresh button are searched for in up to `DIALOG_ATTEMPTS` screenshots (`config.py`). If a purchase dialog opens late and is left on top of the shop, the bot closes it with Cancel before refreshing. Whenever a dialog or the Refresh button is not found, the screenshot the bot analysed is saved to `%TEMP%\secret_shop_bot` and its path is shown in the log, to help diagnose the failure. Only the latest `DEBUG_MAX_FILES` screenshots (`config.py`) are kept.
+Items already bought in the current shop (shown as `0/1`) are skipped, and the bot remembers what it bought until a refresh actually happens. Dialogs and the Refresh button are searched for in up to `DIALOG_ATTEMPTS` screenshots (`config.py`). If a purchase dialog opens late and is left on top of the shop, the bot closes it with Cancel as soon as it sees it. The refresh is confirmed by clicking the `Confirm` button read on screen (only the refresh dialog has it); if it can't be read, the bot falls back to clicking the button's fixed position. Whenever a dialog or the Refresh button is not found, the screenshot the bot analysed is saved to `%TEMP%\secret_shop_bot` and its path is shown in the log, to help diagnose the failure. Only the latest `DEBUG_MAX_FILES` screenshots (`config.py`) are kept.
 
 Monitored items:
 
